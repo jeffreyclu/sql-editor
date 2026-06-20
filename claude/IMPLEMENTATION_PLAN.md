@@ -30,7 +30,8 @@ design, state management, async/error/loading handling, UX, and trade-off reason
 - Results UI: per-statement panels (table for data, "executed" note for commands, error banner).
 - **Persistence**: run **history** (auto-logged) + **saved queries** (explicit, named, for re-use),
   backed by a lightweight embedded SQLite DB (DL-013).
-- Schema-aware autocomplete with a small client-side schema cache (DL-014).
+- Schema-aware autocomplete, cached via TanStack Query (DL-020).
+- Light/dark theming via Click UI tokens + a `ThemeProvider`/switcher (DL-021).
 - Layered, plugin-extensible architecture per the driving principles.
 
 **Deferred (designed-for, not built)**
@@ -42,7 +43,9 @@ design, state management, async/error/loading handling, UX, and trade-off reason
 - Avoid over-engineering; follow **SOLID**.
 - Separate **business logic** from **pure presentational** components.
 - **Hooks** for the business-logic layer; **Context/providers** for state.
-- Read state via **selectors** — minimal slices only (DL-012).
+- State in **plain split React Context + `useReducer` + action creators** — one provider per concern, isolated by context (DL-019/DL-022, supersedes DL-012).
+- **Container/presentational split** (`components/` pure, `containers/` connected, `App` reads no state) — DL-023.
+- **Theming** via Click UI tokens + `ThemeProvider`/switcher; no hardcoded colors (DL-021).
 - Extract business-logic flows into **services/providers** where it makes sense.
 - **Memoization** to prevent unnecessary re-renders.
 - Shared components — **reusable but not speculative** (DL-008).
@@ -58,8 +61,8 @@ These six criteria are the bar (DL-011). Every design choice traces to one or mo
 |---|---|
 | **Code organization & overall architecture** | Four explicit layers (presentation / state / hooks / services) with inward-only dependencies; backend split into `app` + `routes` + `sql` + `clickhouse` modules. Plugin registry (OCP) keeps the core closed to modification, open to extension. Each file has one reason to change (SRP). |
 | **Readability & maintainability** | Small, named, single-purpose modules; domain types shared (`StatementResult`, `RunResponse`); shared-but-not-speculative components (DL-008); no clever indirection. Decisions are documented in `DECISION_LOG.md` so intent is recoverable. |
-| **Component design & state management** | Pure, `React.memo`'d presentational components (props only); business logic in hooks; state in Context/providers **split by update frequency** (DL-010) and read via the **selector pattern** (DL-012) so a component re-renders only when its selected slice changes. Click UI primitives for consistent, accessible UI. |
-| **Async flows, loading states, errors** | `useRunQuery` is a discriminated-union state machine (`idle\|running\|done\|error`) with `AbortController` cancellation. Backend returns **per-statement** success/error with stop-on-first-error; UI shows explicit running/empty/error states and "remaining statements not run". Transport vs SQL errors are distinguished. |
+| **Component design & state management** | Pure, `React.memo`'d presentational components (props only); business logic in hooks; state in Context/providers **split by update frequency** (DL-010) with **one small provider per concern** (Context + `useState`, DL-019) so typing never re-renders results. Click UI primitives for consistent, accessible UI. |
+| **Async flows, loading states, errors** | Run-query via TanStack Query `useMutation` (idle/pending/success/error) with `AbortSignal` cancellation (DL-020). Backend returns **per-statement** success/error with stop-on-first-error; UI shows explicit running/empty/error states and "remaining statements not run". Transport vs SQL errors are distinguished. |
 | **Basic UX & usability** | CodeMirror editor (highlighting, line numbers), Cmd/Ctrl+Enter to run, Cancel button, per-statement timing + row counts, truncation notice for large results, last-script persistence. |
 | **Thoughtfulness in trade-offs** | Every buy-vs-build call is reasoned and recorded (`SPIKE-buy-vs-build.md` + `DECISION_LOG.md`), including what we deliberately deferred (file import, virtualization, custom ClickHouse dialect) and why. |
 
@@ -73,13 +76,13 @@ Four layers, dependencies pointing inward (UI → hooks → services → types):
 │  ErrorBanner · StatusBar · (future) ImportDialog                                                 │
 └───────────────▲──────────────────────────────────────────────────────────────────────────────── ┘
                 │ props + stable callbacks
-┌───────────────┴── State (Context/Providers, split by frequency — DL-010; selector reads — DL-012) ┐
-│  ClickUIProvider → EditorProvider (doc + PluginRegistry) → QueryProvider (run state, run/cancel)  │
-│  consumed via selector hooks (useEditorSelector / useQuerySelector) over useSyncExternalStore     │
+┌──────────────┴── State (plain Context + useState, one provider per concern — DL-010/DL-019) ──────┐
+│  ClickUIProvider → QueryClientProvider (TanStack, server state) → EditorProvider (doc + plugins)  │
+│  consumed with thin useContext wrappers (useEditor / useQuery / ...) — isolated by context        │
 └───────────────▲────────────────────────────────────────────────────────────────────────────────┘
-                │ selects minimal slice
+                │ reads its provider
 ┌───────────────┴── Business logic (hooks) ──────┐   ┌── Services (framework-agnostic TS) ─────────┐
-│  useRunQuery · useEditor · usePlugins           │──▶│  apiClient · queryService · types (domain)   │
+│  TanStack hooks · useEditor · usePlugins        │──▶│  typed fetch fns (api/) · domain types        │
 └─────────────────────────────────────────────────┘   └──────────────────────────────────────────────┘
 ```
 
@@ -183,22 +186,21 @@ saved_query(   id, name, sql, created_at, updated_at ) -- explicit, named, for r
 
 **Frontend** — surfaced as **editor plugins** (consistent with DL-006):
 `historyPlugin` (a History flyout listing recent runs; click to load) and `saveQueryPlugin`
-(a "Save query" toolbar action + Saved list). State in `HistoryProvider` / `SavedQueriesProvider`
-stores read via selectors (DL-012); mutations invalidate the in-memory list.
+(a "Save query" toolbar action + Saved list). Data via **TanStack Query** (`useHistory` /
+`useSavedQueries` = `useQuery`); save/delete mutations call `invalidateQueries` (DL-020).
 
-## Caching strategy (DL-014)
+## Caching strategy (DL-020)
 
-**No general-purpose / result cache** (no Redis) — over-engineering for this scope and a
-staleness risk. We cache in exactly one place and reuse existing mechanisms elsewhere:
+**TanStack Query is the server-state layer**; we do not hand-roll caches. Policy:
 
-- **Schema/autocomplete metadata — cache (worth it).** Fetch table/column names once into a
-  `SchemaProvider` (from `system.columns` / `SHOW TABLES`) for CodeMirror autocomplete, with a
-  manual "refresh schema" action. Avoids re-querying on every keystroke.
-- **Query results — never cached** (freshness/correctness). ClickHouse's own query cache is an
-  optional server-side toggle, not an app concern.
-- **History & saved queries — in-memory provider store**, invalidated on mutation; SQLite reads
-  are local/fast, so no separate cache.
-- **Render caching** via `React.memo` + selector subscriptions (DL-010/DL-012); **asset caching**
+- **Schema/autocomplete metadata — cache (worth it).** `useSchema` (`useQuery` from
+  `system.columns` / `SHOW TABLES`) with a long `staleTime` + a manual "refresh schema" refetch.
+  Avoids re-querying on every keystroke.
+- **Query results — never cached** (freshness/correctness): run-query is a `useMutation`, which
+  doesn't cache. ClickHouse's own query cache is an optional server-side toggle, not an app concern.
+- **History & saved queries — `useQuery`**, refreshed by `invalidateQueries` on save/delete; no
+  bespoke store.
+- **Render caching** via `React.memo` + context-splitting (DL-010/DL-019); **asset caching**
   via Vite content-hashed bundles. Both free.
 
 ## Frontend structure
@@ -208,33 +210,32 @@ web/
   index.html
   tsconfig.json
   src/
-    main.tsx                       # ClickUIProvider + cui.css + provider tree
+    main.tsx                       # ClickUIProvider + QueryClientProvider + EditorProvider tree
     App.tsx                        # layout: editor pane / results pane
     api/
-      apiClient.ts                 # typed fetch wrappers (runQuery, history, savedQueries, schema) + AbortSignal
+      client.ts                    # thin typed fetch fns (runQuery, history, savedQueries, schema)
+      queries.ts                   # TanStack hooks: useRunMutation, useHistory, useSavedQueries, useSchema (DL-020)
       types.ts                     # mirrors src/server/types.ts (RunResponse, StatementResult)
-    services/
-      queryService.ts              # orchestration over apiClient → domain model
-    state/
-      createStore.ts               # tiny store factory over useSyncExternalStore (selector subscriptions)
-      EditorProvider.tsx           # SQL document + PluginRegistry store
-      QueryProvider.tsx            # run-state store via useRunQuery; exposes run()/cancel()
-      HistoryProvider.tsx          # run-history store (DL-013)
-      SavedQueriesProvider.tsx     # saved-queries store (DL-013)
-      SchemaProvider.tsx           # cached schema for autocomplete (DL-014)
+    state/                         # Context + useReducer — UI state (DL-019/DL-022)
+      EditorProvider.tsx           # SQL document
+      ThemeProvider.tsx            # light/dark theme → ClickUIProvider (DL-021)
       PluginRegistry.ts            # register/list plugins
+    containers/                    # connected wrappers (consume hooks/providers) — DL-023
+      EditorPane.tsx  RunControls.tsx  ResultsRegion.tsx  ThemeSwitcher.tsx
     data/
       goldenQueries.ts             # curated golden dataset — powers UI + tests (DL-016)
     hooks/
-      useRunQuery.ts               # idle|running|done|error union + AbortController
-      useEditorSelector.ts         # select minimal slice of editor state (DL-012)
-      useQuerySelector.ts          # select minimal slice of query state (DL-012)
-      useEditor.ts                 # document + commands (stable action handle)
+      useEditor.ts                 # useContext wrapper for EditorProvider (doc + actions)
       usePlugins.ts                # access registry
-    components/                    # pure, memoized, Click UI–based
-      Toolbar.tsx  RunButton.tsx  EditorSurface.tsx
-      ResultsPanel.tsx  StatementResultCard.tsx  ResultTable.tsx
-      ErrorBanner.tsx  StatusBar.tsx
+    components/                    # pure + memoized; COMPOSE Click UI primitives first (DL-017)
+      RunButton.tsx                # Click UI <Button>
+      EditorSurface.tsx            # CodeMirror — sanctioned custom (Click UI has no editor, DL-002)
+      ResultsPanel.tsx             # Click UI <Container> hosting per-statement cards
+      StatementResultCard.tsx      #   Click UI <Panel> + <Badge>/<Text> (Card* has no children slot, DL-017)
+      ResultTable.tsx              #   Click UI <Table> (do NOT hand-roll a data grid)
+      ErrorBanner.tsx              #   Click UI <Alert>
+      StatusBar.tsx                #   Click UI <Text>/<Badge> in a thin layout strip
+      Toolbar.tsx                  # thin layout header (no Click UI toolbar primitive); actions = Click UI <Button>s
     plugins/
       types.ts                     # EditorPlugin, ToolbarAction interfaces
       historyPlugin.tsx            # History flyout (DL-013)
@@ -243,15 +244,10 @@ web/
       (fileImportPlugin.tsx)       # FUTURE — example/seed of the addon pattern
 ```
 
-**Async state machine** (`useRunQuery`) — discriminated union, not loose booleans:
-```ts
-type RunState =
-  | { status: 'idle' }
-  | { status: 'running' }
-  | { status: 'done'; data: RunResponse }
-  | { status: 'error'; message: string }; // transport/parse failure
-```
-Uses `AbortController` so a new run cancels the in-flight one (wired to a Cancel button).
+**Async via TanStack Query** (DL-020): run-query is a `useMutation` whose states
+(`isIdle`/`isPending`/`isSuccess`/`isError`, `data`, `error`) drive the UI — no hand-rolled state
+machine. The mutation fn passes an `AbortSignal` so a new run cancels the in-flight one (wired to a
+Cancel button). History/saved/schema are `useQuery`; save/delete call `invalidateQueries`.
 
 **Cheap, high-value UX:** Cmd/Ctrl+Enter to run (CM keymap), per-statement elapsed/rowCount,
 explicit loading/empty/error states, "remaining statements not run" on error, persist last
@@ -259,8 +255,9 @@ script to `localStorage`.
 
 ## Tooling & serving (DL-007)
 
-- **New deps:** `react`, `react-dom`, `@clickhouse/click-ui`, `styled-components`, `dayjs`,
-  `@uiw/react-codemirror`, `@codemirror/lang-sql`, `dbgate-query-splitter`, `better-sqlite3`.
+- **New deps:** `react`, `react-dom`, `@tanstack/react-query`, `@clickhouse/click-ui`,
+  `styled-components`, `dayjs`, `@uiw/react-codemirror`, `@codemirror/lang-sql`,
+  `dbgate-query-splitter`, `better-sqlite3`.
 - **New devDeps:** `vite`, `@vitejs/plugin-react`, `@types/react`, `@types/react-dom`,
   `concurrently`, `@types/better-sqlite3`, `vitest`, `@testing-library/react`,
   `@testing-library/user-event`, `supertest`. **Upgrade** `typescript`→`^5.4`,
@@ -293,8 +290,8 @@ Priority targets (the things most likely to break or to be wrong):
   SQLite, exercising the interface (DL-013).
 - **`POST /query` route** — supertest: single statement, multi-statement, stop-on-first-error,
   history auto-logging (mock the ClickHouse client).
-- **`useRunQuery` hook** — the async state machine: idle→running→done/error transitions and
-  AbortController cancellation.
+- **Run mutation hook** — TanStack `useMutation` (wrapped in `QueryClientProvider`):
+  pending→success/error transitions and `AbortSignal` cancellation.
 - **One critical UI path** — type a query → Run → results render; and load a golden example →
   Run → table appears (Testing Library).
 
@@ -326,7 +323,7 @@ seen in action immediately. **In tests**, the same array feeds the splitter/clas
 1. **Tooling/serving** — blank React app renders at `/` in dev and prod (de-risks everything).
 2. **Backend query** — split + classify + sequential execute; `RunResponse`. **Tests:** splitter + classifier.
 3. **Persistence** — SQLite repos + `/api/history` + `/api/queries`; `/query` auto-logs. **Tests:** repositories + `/query` route (supertest).
-4. **State + services + hooks** — providers + selector stores, `apiClient`, `useRunQuery`. **Tests:** `useRunQuery` state machine.
+4. **Data + state + hooks** — TanStack Query hooks (run `useMutation`; history/saved/schema `useQuery`) + Context `useState` (UI). **Tests:** run mutation hook.
 5. **Editor + results UI** — CodeMirror surface, toolbar, per-statement results (features 1 & 2) + golden dataset + `examplesPlugin`. **Tests:** one critical UI path.
 6. **Plugins** — history / saveQuery / examples wired; plugin seam ready for file import (no upload yet).
 7. **Docs** — update root `README.md` (scripts, decisions, limitations); keep this `claude/` folder current.
@@ -360,5 +357,5 @@ seen in action immediately. **In tests**, the same array feeds the splitter/clas
    - **Autocomplete:** type a table name → suggestions from cached schema; "refresh schema" after a CREATE.
 6. **Backend:** exercise `src/requests.http` against the new response shape.
 7. **Automated tests:** `npm test` (Vitest) — splitter/classifier, repositories, `/query` route,
-   `useRunQuery`, and one UI path (DL-015).
+   the run `useMutation` hook, and one UI path (DL-015).
 8. **(Later)** import plugin: upload a CSV into a table, confirm rows written.

@@ -119,8 +119,9 @@ ADR-lite: **Context → Decision → Consequences → Alternatives**.
 - **Decision:** Four explicit layers:
   1. **Presentation** — pure, `React.memo`'d components (props only, no IO), built on Click UI.
   2. **State** — React Context + providers, split by update frequency (see DL-010).
-  3. **Business logic** — custom hooks (`useRunQuery`, `useEditor`, `usePlugins`).
-  4. **Services** — framework-agnostic TS (`apiClient`, `queryService`, domain `types`).
+  3. **Business logic** — custom hooks (`useEditor`, `usePlugins`) + TanStack Query hooks
+     (run / history / saved / schema — DL-020).
+  4. **Services** — framework-agnostic TS (thin typed fetch fns + domain `types`).
   - SOLID mapping: SRP (each layer one reason to change), OCP (plugins extend without
     modifying core — DL-006), ISP (small interfaces like `EditorPlugin`, `ToolbarAction`),
     DIP (components depend on hook/service abstractions; `apiClient` injected via provider
@@ -217,12 +218,13 @@ ADR-lite: **Context → Decision → Consequences → Alternatives**.
   re-renders. A single context updated on every keystroke would re-render the whole tree.
 - **Decision:**
   - `EditorProvider` owns the high-frequency editor document + plugin registry.
-  - `QueryProvider` owns lower-frequency query-execution state (status, results, error)
-    and exposes `run()` / `cancel()`.
+  - Query execution/results are **server state** owned by TanStack Query (DL-020), not a Context
+    store; only editor/UI state lives in providers here.
   - Memoize context values with `useMemo`, stabilize callbacks with `useCallback`, wrap
     presentational components in `React.memo`. Split read/write contexts if profiling
     shows churn.
-  - **Consumers read state via selectors (refined by DL-012)** — not raw `useContext`.
+  - **State is split into one small provider per concern** (DL-019, which superseded the
+    DL-012 selector approach) — each read with a plain `useContext` wrapper.
 - **Consequences:** Typing in the editor does not re-render the results grid, and vice
   versa.
 
@@ -243,8 +245,8 @@ ADR-lite: **Context → Decision → Consequences → Alternatives**.
 - **Consequences:**
   - Architecture (1) and component/state design (3) → enforced by the four-layer split,
     pure memoized components, Context-by-frequency, and the plugin registry (DL-005, DL-010).
-  - Async/loading/errors (4) → `useRunQuery` state machine + `AbortController` + per-statement
-    error reporting (DL-004).
+  - Async/loading/errors (4) → TanStack Query `useMutation` (idle/pending/success/error) +
+    `AbortSignal` + per-statement error reporting (DL-004/DL-020).
   - Readability/maintainability (2) and trade-offs (6) → small single-purpose modules plus
     this decision log and the buy-vs-build spike as durable rationale.
   - UX (5) → CodeMirror affordances, Cmd/Ctrl+Enter, cancel, timing/row counts, truncation notice.
@@ -255,8 +257,11 @@ ADR-lite: **Context → Decision → Consequences → Alternatives**.
 
 ## DL-012 — Read state via the selector pattern (subscribe to minimal slices)
 
+> ⚠️ **Superseded by DL-019 (2026-06-20).** We dropped the custom selector store in favor of
+> plain split React Context + `useState` (barebones). Retained below for history.
+
 - **Date:** 2026-06-19
-- **Status:** Accepted
+- **Status:** Superseded by DL-019
 - **Decided by:** User
 - **Context:** Even with contexts split by update frequency (DL-010), a component that calls
   `useContext` re-renders whenever **any** field of that context value changes — not just the
@@ -300,8 +305,8 @@ ADR-lite: **Context → Decision → Consequences → Alternatives**.
     `saved_query` (explicit, named, for re-use) — distinct lifecycles.
   - Endpoints: `POST /query` auto-records history; `GET/DELETE /api/history`;
     `GET/POST/PUT/DELETE /api/queries`.
-  - Frontend exposes both as **editor plugins** (DL-006) with provider stores read via
-    selectors (DL-012).
+  - Frontend exposes both as **editor plugins** (DL-006); their data is fetched/cached via
+    **TanStack Query** (`useQuery` + `invalidateQueries`), DL-020.
 - **Consequences:** Real SQL, easy to inspect; native module (ships prebuilt binaries); the
   DB file is added to `.gitignore`. Repository abstraction enables fast in-memory tests (DL-015).
 - **Alternatives considered:** `node:sqlite` (experimental, needs Node 22+; repo targets 20+);
@@ -312,8 +317,12 @@ ADR-lite: **Context → Decision → Consequences → Alternatives**.
 
 ## DL-014 — Caching strategy: targeted, not general
 
+> ⚠️ **Superseded by DL-020 (2026-06-20).** We adopted TanStack Query as the server-state layer.
+> DL-014's *policy* still holds (run results never cached; schema cached; ClickHouse query cache is
+> a server toggle) — but the *mechanism* (hand-rolled stores / no library) is replaced. Retained for history.
+
 - **Date:** 2026-06-19
-- **Status:** Accepted
+- **Status:** Superseded by DL-020
 - **Decided by:** Engineering (answering "do we need caching?")
 - **Context:** Asked whether caching is needed/helpful.
 - **Decision:** **No general-purpose / result cache.** Cache in exactly one place and reuse
@@ -324,7 +333,7 @@ ADR-lite: **Context → Decision → Consequences → Alternatives**.
     an optional server-side toggle, not an app concern.
   - **History & saved queries — in-memory provider store**, invalidated on mutation; SQLite
     reads are local/fast.
-  - **Render caching** via `React.memo` + selectors (DL-010/DL-012); **asset caching** via
+  - **Render caching** via `React.memo` + context-splitting (DL-010/DL-019); **asset caching** via
     Vite content-hashed bundles.
 - **Consequences:** Avoids stale-data bugs and over-engineering; the one cache (schema) gives
   a real autocomplete UX/perf win.
@@ -346,7 +355,7 @@ ADR-lite: **Context → Decision → Consequences → Alternatives**.
     edge cases).
   - Repositories (in-memory SQLite CRUD).
   - `POST /query` route (single/multi/stop-on-error/history logging; ClickHouse client mocked).
-  - `useRunQuery` async state machine + cancellation.
+  - The run `useMutation` hook (TanStack, wrapped in `QueryClientProvider`) + `AbortSignal` cancellation.
   - One critical UI path (type → Run → results; load golden example → Run).
 - **Consequences:** Meaningful safety net without coverage-chasing. Out of scope: exhaustive
   snapshots, Click UI internals, ClickHouse itself.
@@ -389,6 +398,12 @@ ADR-lite: **Context → Decision → Consequences → Alternatives**.
 - **Consequences:** Consistent, accessible UI with minimal bespoke code; custom components are
   rare and justified. Reviewers can trust the UI layer is mostly first-party.
 - **Alternatives considered:** Build-first / mix freely (rejected: inconsistency, wasted effort).
+- **Refinement (2026-06-20, from FE review):** For surfaces/layout use Click UI **`Panel`**
+  (bordered surface), **`Container`** (flex / padding / gap / overflow), and **`Separator`**. Click UI
+  **`Card*`** components are rigid tiles (title/icon/description/badge props, **no children slot**),
+  so they are **not** used for the statement result cards — `Panel` is the correct surface. Remaining
+  bespoke CSS is limited to the app-shell grid, the truncated-SQL line, and the table column-header
+  (no Click UI primitive for those).
 
 ---
 
@@ -409,3 +424,131 @@ ADR-lite: **Context → Decision → Consequences → Alternatives**.
   must be updated whenever a new decision is logged here (this file remains the source of truth).
 - **Alternatives considered:** Skill only (no load guarantee); add a SessionStart/PreToolUse
   hook (hardest guarantee, more moving parts — deferred, can add later).
+
+---
+
+## DL-019 — State via plain split React Context + `useState` (barebones)
+
+- **Date:** 2026-06-20
+- **Status:** Accepted (**supersedes DL-012**)
+- **Decided by:** User
+- **Context:** Reviewing frontend Slice 1 surfaced that the custom `createStore` + `useStore`
+  selector hook reimplements React's official `useSyncExternalStoreWithSelector` — ~70 lines of
+  infra we'd own for a correctness-sensitive job. The user asked for the **absolute simplest,
+  barebones** solution and questioned why a custom store exists at all.
+- **Decision:** Drop the custom selector store **and** the selector pattern. Store state in
+  **plain React Context + `useState`/`useReducer`**, with **one small provider per concern**
+  (editor, query, history, saved, schema). **No custom store, no selector library, no dependency.**
+  - **Re-render isolation comes from splitting contexts by concern (DL-010)**, not selectors —
+    e.g. the editor document lives in its own `EditorContext`, so typing cannot re-render the
+    results pane. That's the only re-render problem at this app's scale, and context-splitting
+    already solves it.
+  - Memoize each provider's context `value` with `useMemo`; keep presentational components
+    `React.memo` (DL-005).
+  - Add selectors / `useShallow` / a store library **only if** a specific context later shows
+    *measured* re-render problems — never speculatively (DL-008).
+- **Consequences:**
+  - Deletes `web/src/state/createStore.ts`, `web/src/hooks/useStore.ts`,
+    `web/src/hooks/useEditorSelector.ts` and their tests. `EditorProvider` becomes Context +
+    `useState` (still trivially testable through its hook). The provider tree in `main.tsx` is
+    unchanged in shape.
+  - Coarser re-renders *within* a single context — negligible here, and aligned with the
+    "avoid over-engineering" principle.
+  - **Documented scale-up path** if we ever outgrow it: **Zustand** is the industry-standard
+    lightweight selector store; Redux Toolkit for heavyweight needs.
+- **Alternatives considered:**
+  - Keep the custom store (rejected: reinvents an official utility; ~70 LOC + correctness burden).
+  - Official `use-sync-external-store/with-selector` shim (rejected: still selector machinery we
+    don't need yet).
+  - **Zustand** via context / `use-context-selector` (rejected *for now*: a dependency, and more
+    than "barebones" requires — kept as the documented scale-up path, not the default).
+
+---
+
+## DL-020 — TanStack Query as the server-state / data-fetching layer (supersedes DL-014)
+
+- **Date:** 2026-06-20
+- **Status:** Accepted (**supersedes DL-014**; refines the data-fetch parts of DL-004/005/010/013/015)
+- **Decided by:** User
+- **Context:** Reviewing the *planned* custom `apiClient` + `useRunQuery` + hand-rolled
+  history/saved/schema caches, the user asked why we'd build a custom data layer instead of using
+  TanStack Query. The app has two kinds of server interaction: an imperative, **uncached** run-query
+  POST, and **cacheable** GETs (history, saved queries, schema). (Nothing custom was built yet —
+  `web/src/api/` had only `types.ts` — so this is a zero-refactor choice.)
+- **Decision:** Adopt **`@tanstack/react-query`** as the entire **server-state** layer. Client/UI
+  state stays plain Context + `useState` (DL-019) — orthogonal: *server* state vs *UI* state.
+  - **Run query → `useMutation`.** Imperative, **never cached** (results must be fresh — preserves
+    DL-014's policy); pass `AbortSignal` for cancellation. Replaces the planned custom `useRunQuery`
+    state machine (`useMutation` already exposes idle/pending/success/error).
+  - **History / saved queries / schema → `useQuery`** keyed per resource; **mutations call
+    `invalidateQueries`** to refresh. Replaces the hand-rolled in-memory stores + manual
+    invalidation (DL-013) and the manual schema cache (DL-014). Schema uses a long `staleTime` +
+    manual refetch ("refresh schema").
+  - Only custom data code is **thin typed fetch fns** under `api/` (returning the
+    `web/src/api/types.ts` shapes); TanStack wraps them. `QueryClientProvider` joins the provider
+    tree in `main.tsx`.
+- **Consequences:**
+  - Deletes the planned custom `apiClient` state plumbing + `useRunQuery`; adds
+    `@tanstack/react-query` (~13 kB gz — marginal next to Click UI + CodeMirror).
+  - Loading/error/abort, dedup, and cache-invalidation come from the industry-standard server-state
+    lib, shrinking custom surface and bug risk.
+  - **Eval criterion #4 (async/loading/errors)** is demonstrated via correct TanStack usage
+    (mutation states, `AbortSignal`, query invalidation) rather than a hand-rolled machine.
+  - Tests wrap hooks in a `QueryClientProvider`; the run path is a `useMutation` test (DL-015).
+- **Alternatives considered:** Hybrid (TanStack for GETs, custom `useRunQuery` for run, to showcase
+  async handling directly) — viable, **rejected by the user** in favor of one consistent data layer;
+  keep-custom / no dependency (rejected: reinvents fetch + cache + invalidate).
+
+---
+
+## DL-021 — Theming: dark/light switcher + Click UI design tokens
+
+- **Date:** 2026-06-20
+- **Status:** Accepted (resolves the hardcoded-hex NOTE from R1/R2)
+- **Decided by:** User
+- **Context:** The app shell used hardcoded hex colors and there was no theme toggle; the user
+  wanted dark/light support and styling consistent with the Click UI design system.
+- **Decision:** A `ThemeProvider` owns `light|dark` (reducer + own `localStorage`) and feeds
+  `ClickUIProvider`'s `theme` prop with **`persistTheme={false}`** (we own persistence). A
+  `ThemeSwitcher` (Click UI `Button`) in the toolbar toggles it. Shell CSS uses **Click UI design
+  tokens** (`var(--click-global-color-*)`) instead of hex, so the custom shell re-themes
+  automatically via the root `data-cui-theme` attribute set by `ClickUIProvider`. `ThemeProvider`
+  is outermost in the provider tree.
+- **Consequences:** One switch re-themes both Click UI components and the custom shell; no hardcoded
+  colors remain (only layout). **Confirmed in-browser by the product owner (2026-06-20).**
+- **Alternatives considered:** Click UI's built-in theme persistence (rejected: we persist to our
+  own key); CSS-only media-query dark mode (rejected: no user control, wouldn't drive Click UI).
+
+---
+
+## DL-022 — Provider state uses `useReducer` + action creators (refines DL-019)
+
+- **Date:** 2026-06-20
+- **Status:** Accepted (refines DL-019)
+- **Decided by:** User
+- **Context:** DL-019 allows plain `useState`/`useReducer`. The user prefers reducers + semantic
+  action creators over ad-hoc `useState` setters, for explicit and testable transitions.
+- **Decision:** UI-state Context providers model state with **`useReducer`** + an action union +
+  semantic action creators (`setDoc`, `toggleTheme`). Reducers stay **pure**; side effects (e.g.
+  `localStorage` persistence) live in `useEffect`. The context `value` is `useMemo`'d.
+  (Run-query state remains a TanStack `useMutation` — DL-020; this applies to UI-state providers.)
+- **Consequences:** Explicit, unit-testable transitions and a consistent provider shape. Still no
+  custom store / selector library (DL-019).
+
+---
+
+## DL-023 — Container / presentational split via a `containers/` layer (refines DL-005)
+
+- **Date:** 2026-06-20
+- **Status:** Accepted (refines DL-005)
+- **Decided by:** User
+- **Context:** `App.tsx` had accumulated connected-wrapper logic; the user asked to split it.
+- **Decision:** Three UI tiers:
+  - **`components/`** — pure, `React.memo`, props-only, Click UI-based. No hooks/state.
+  - **`containers/`** — connected wrappers that consume hooks/providers and pass plain props down
+    (`EditorPane`, `RunControls`, `ResultsRegion`, `ThemeSwitcher`).
+  - **`App.tsx`** — composition root; reads **no** state, so it never re-renders.
+  Each container subscribes to **only its** provider, so re-renders stay isolated (DL-010) — e.g.
+  `ResultsRegion` reads only the query provider, so typing never re-renders results.
+- **Consequences:** Presentation stays logic-free/testable; subscription boundaries are explicit;
+  `App` never re-renders. Clear home for the future plugin-contributed wrappers.

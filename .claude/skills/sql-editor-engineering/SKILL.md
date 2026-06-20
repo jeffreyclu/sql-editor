@@ -31,15 +31,26 @@ trade-offs. These must be rock-solid; every choice should trace to one or more.
   props-only, and wrapped in `React.memo`. No data-fetching or business logic inside them.
 - **Business logic lives in hooks; state lives in React Context/providers.** Extract whole
   business-logic flows into **services**/providers where it makes sense.
-- **Read state via the selector pattern (DL-012).** Never consume a context with raw
-  `useContext` for data — subscribe to the **minimal slice** via selector hooks
-  (`useQuerySelector(s => s.status)`), backed by `useSyncExternalStore`. Read **actions** from a
-  separate stable handle so calling them never re-renders.
+- **UI state = plain split React Context + `useReducer` + action creators (DL-019/DL-022,
+  supersedes DL-012)** — editor doc, theme, plugins. Reducers stay **pure**; side effects (e.g.
+  `localStorage`) live in `useEffect`. Re-render isolation comes from **splitting contexts by
+  concern** (DL-010), NOT selectors — the editor doc lives in its own context so typing can't
+  re-render results. Memoize each provider's `value` with `useMemo`. **No custom store, no selector
+  library.** Add selectors / `useShallow` / Zustand **only** on *measured* churn (DL-008).
+- **Server state = TanStack Query (DL-020).** `useMutation` for run-query (**never cached**),
+  `useQuery` + `invalidateQueries` for history / saved queries / schema. Don't hand-roll
+  fetch/cache/abort. Only custom data code = thin typed fetch fns under `api/`.
 - **Split context/state by update frequency (DL-010)** so editing never re-renders results.
   Use `useMemo`/`useCallback` to stabilize values and callbacks.
-- **Click UI components first (DL-017).** Always use an existing `@clickhouse/click-ui`
-  component before building a custom one. Build custom **only** when Click UI lacks it, and wrap
-  it to match the design system.
+- **Click UI components first (DL-017).** Always use an existing `@clickhouse/click-ui` component
+  before building one. Surfaces/layout = `Panel` / `Container` / `Separator`; `Card*` are rigid tiles
+  (no children slot) — don't use them to wrap content. Custom UI only for the editor + layout shell.
+  Style with **design tokens** (`var(--click-global-color-*)`), not hex.
+- **Theming (DL-021).** A `ThemeProvider` drives `ClickUIProvider`'s `theme` (light/dark) +
+  `data-cui-theme`; a `ThemeSwitcher` toggles it. No hardcoded colors — shell + components re-theme.
+- **Container / presentational split (DL-023).** `components/` pure + memoized; `containers/`
+  connected wrappers (consume hooks/providers, pass props down); `App` is the composition root and
+  reads no state.
 - **Shared but not speculative (DL-008).** Make components reusable, but extract a shared
   abstraction only when a real second use appears — not preemptively.
 - **Addons are editor plugins (DL-006).** New optional features (e.g. file import, history,
@@ -49,20 +60,23 @@ trade-offs. These must be rock-solid; every choice should trace to one or more.
 
 ## Architecture (layers; dependencies point inward)
 
-`Presentation (pure, memoized, Click UI)` → `State (Context/providers, selector reads)` →
+`Presentation (pure, memoized, Click UI)` → `State (one Context+useState provider per concern)` →
 `Business logic (hooks)` → `Services (framework-agnostic TS)` → `Domain types`.
 
 ### Frontend (`web/`)
-- `components/` — pure, memoized, Click UI-based, props only.
-- `state/` — `createStore.ts` (tiny `useSyncExternalStore` factory), providers
-  (`EditorProvider`, `QueryProvider`, `HistoryProvider`, `SavedQueriesProvider`,
-  `SchemaProvider`), `PluginRegistry`.
-- `hooks/` — `useRunQuery` (async state machine), `useEditorSelector`/`useQuerySelector`
-  (selectors), `useEditor`, `usePlugins`.
-- `services/` + `api/apiClient.ts` — typed fetch wrappers, AbortSignal; no React.
+- `components/` — pure, memoized, Click UI-based, props only (DL-023).
+- `containers/` — connected wrappers consuming hooks/providers (`EditorPane`, `RunControls`,
+  `ResultsRegion`, `ThemeSwitcher`) — DL-023.
+- `state/` — Context + `useReducer` providers for **UI state** (`EditorProvider`, `ThemeProvider`,
+  `PluginRegistry`) — DL-019/DL-021/DL-022.
+- `api/` — thin typed fetch fns + **TanStack Query** hooks (DL-020): `useRunQuery` (run,
+  `useMutation`), `useHistory` / `useSavedQueries` / `useSchema` (`useQuery`); `types.ts` (contract).
+- `hooks/` — `useEditor` / `useQuery` (`useContext` wrappers), `usePlugins`.
 - `plugins/` — `EditorPlugin`/`ToolbarAction` interfaces; `historyPlugin`, `saveQueryPlugin`,
   `examplesPlugin`; (future) `fileImportPlugin`.
 - `data/goldenQueries.ts` — the golden dataset (also used by tests).
+- `styles.css` — app-shell layout only; colors via Click UI design tokens (DL-021).
+- `App.tsx` — composition root; reads no state (DL-023).
 
 ### Backend (`src/server/`)
 - `routes/query.ts` — `POST /query`: split → classify → execute sequentially → per-statement
@@ -87,11 +101,12 @@ trade-offs. These must be rock-solid; every choice should trace to one or more.
   data). Cap rows server-side (default 1000) with a `truncated` flag.
 - **Persistence: `better-sqlite3`** behind repository interfaces (DL-013). `query_history`
   (auto) + `saved_query` (explicit). DB file is gitignored.
-- **Caching (DL-014):** none general. Cache **only** schema/autocomplete metadata client-side
-  (`SchemaProvider`, manual refresh). Never cache query results. History/saved live in their
-  in-memory store.
-- **Async state (DL-004/DL-015):** `useRunQuery` is a discriminated union
-  (`idle|running|done|error`) with `AbortController` cancellation. Always render explicit
+- **Data/caching (DL-020):** **TanStack Query** is the server-state layer. `useQuery` +
+  `invalidateQueries` for history/saved/schema (schema: long `staleTime` + manual refresh).
+  **Run query is `useMutation` — never cached** (results must be fresh). ClickHouse's own query
+  cache is a server toggle, not app code.
+- **Async state (DL-004/DL-020):** run-query uses TanStack `useMutation`
+  (idle/pending/success/error) with `AbortSignal` cancellation. Always render explicit
   loading/empty/error states; distinguish transport errors from per-statement SQL errors.
 
 ## Tooling
@@ -109,13 +124,13 @@ fixtures. Cover: simple SELECT, `system.tables`, a self-contained multi-statemen
 ## Required tests (pragmatic — DL-015)
 
 `splitStatements` + `classify` (over the golden dataset + edge cases); repositories (in-memory
-SQLite); `POST /query` (supertest, ClickHouse mocked); `useRunQuery`; one UI path. Don't test
-Click UI internals or ClickHouse itself.
+SQLite); `POST /query` (supertest, ClickHouse mocked); the run `useMutation` hook (wrapped in
+`QueryClientProvider`); one UI path. Don't test Click UI internals or ClickHouse itself.
 
 ## Before you start building — checklist
 
 1. Read the relevant `DL-xxx` entries for the area you're touching.
-2. Put new state in a provider; read it via selectors; keep components pure + memoized.
+2. Put new state in its own small Context+`useState` provider (DL-019); keep components pure + memoized.
 3. Check Click UI for a component **before** writing one.
 4. Add optional features as plugins, not core edits.
 5. Add/extend the few required tests for what you changed.

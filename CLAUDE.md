@@ -24,21 +24,28 @@ queries. File import is a future, plugin-based feature.
 - **Avoid over-engineering; follow SOLID.**
 - **Pure presentational components** (props only, `React.memo`); **business logic in hooks**;
   **state in React Context/providers**.
-- **Read state via selectors** (minimal slices, `useSyncExternalStore`) — never raw `useContext`
-  for data. Actions come from a stable handle. Split state by update frequency (DL-010/DL-012).
-- **Click UI first (DL-017)** — use `@clickhouse/click-ui` before building a component; build
-  custom only when it's missing (e.g. the editor → CodeMirror, DL-002).
+- **UI state = plain split React Context + `useReducer` + action creators** (DL-019/DL-022) — one
+  provider per concern (editor doc, theme, plugins), isolated by context so typing never re-renders
+  results (DL-010); reducers pure, side effects in `useEffect`; memoize each `value`. No custom store
+  / selector lib; add Zustand only on *measured* churn.
+- **Server state = TanStack Query (DL-020)** — `useMutation` for run-query (never cached),
+  `useQuery` + `invalidateQueries` for history/saved/schema. Don't hand-roll fetch/cache/abort.
+- **Click UI first (DL-017)** — use `@clickhouse/click-ui` before building a component; surfaces =
+  `Panel`/`Container`/`Separator` (`Card*` have no children slot); style via design tokens, not hex.
+  Custom only for the editor (CodeMirror, DL-002) + layout shell.
+- **Theming (DL-021)** — `ThemeProvider` drives Click UI light/dark + `data-cui-theme`; `ThemeSwitcher` toggles.
+- **Container/presentational split (DL-023)** — `components/` pure; `containers/` connected; `App` reads no state.
 - **Addons are editor plugins (DL-006)** — history, saved queries, examples, future file import.
 - **Shared but not speculative (DL-008).**
 - **Backend owns SQL execution (DL-004):** split (`dbgate-query-splitter`) → classify → run in
   order, stop on first error, return `{ statements }` with columns/rows/timing/errors.
-- **Persistence:** `better-sqlite3` behind repositories (DL-013). **Caching:** only schema
-  autocomplete metadata; never cache results (DL-014).
-- **Async:** `useRunQuery` discriminated-union state machine + `AbortController`; always show
-  loading/empty/error states.
-- **Tests (DL-015, pragmatic):** splitter/classifier, repositories, `/query` route,
-  `useRunQuery`, one UI path. Golden dataset (`web/src/data/goldenQueries.ts`) powers the in-UI
-  Examples picker **and** test fixtures (DL-016).
+- **Persistence:** `better-sqlite3` behind repositories (DL-013). **Caching:** via TanStack Query
+  (schema/history/saved); **run results never cached** (DL-020).
+- **Async:** run-query via TanStack `useMutation` (idle/pending/success/error) + `AbortSignal`;
+  always show loading/empty/error states (DL-020).
+- **Tests (DL-015, pragmatic):** splitter/classifier, repositories, `/query` route, the run
+  `useMutation` hook (in `QueryClientProvider`), one UI path. Golden dataset
+  (`web/src/data/goldenQueries.ts`) powers the in-UI Examples picker **and** test fixtures (DL-016).
 
 ## Commands
 
