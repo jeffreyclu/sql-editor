@@ -189,3 +189,27 @@ feature is picked up.
 | **NOTE** tsconfig `moduleResolution` | Still deferred (shared frontend tsconfig split) — unchanged, as the review agreed. |
 
 No change to `StatementResult`, so the FE mirror (`web/src/api/types.ts`) needs no update.
+
+---
+
+## Committed to `main`
+
+- **Date:** 2026-06-20
+- **Status:** All backend work (Slices 1, 1b, 2 + Review R1 fixes) committed to `main` in five
+  dependency-ordered chunks — each commit's tree builds only on what precedes it, so any prefix
+  is self-consistent. Committed directly to `main` at the user's explicit request; not pushed.
+
+| Commit | Scope |
+|---|---|
+| `6765994` `chore(backend)` | Test toolchain + deps (vitest, supertest, dbgate-query-splitter, better-sqlite3, concurrently); TS 5 / @types/node 20 bump; dropped tslint + body-parser; vitest config; gitignore for SQLite files. |
+| `cda96b9` `feat(backend)` | SQL core: domain `types.ts`, `sql/splitStatements`, `sql/classify`, `clickhouse.ts` executor port (+ unit tests). |
+| `bcf2f8f` `feat(backend)` | SQLite persistence: `db/db.ts` + history/saved-query repositories (+ in-memory CRUD tests). |
+| `da2a32e` `feat(backend)` | HTTP API: `/query`, `/api/history`, `/api/queries`, `app.ts` factory, `index.ts`, JSON error handler (+ supertest tests). |
+| `efdb506` `docs(backend)` | This build log + the review log. |
+
+### Notes
+- `package.json` / `package-lock.json` are a single file shared with the frontend track, so the
+  tooling commit unavoidably also carries the frontend's dependency entries.
+- Left uncommitted (not backend-owned): `web/`, `vite.config.ts`, `tsconfig.node.json`, the
+  `FRONTEND_*` logs, and the shared planning docs (`CLAUDE.md`, `DECISION_LOG.md`, `SKILL.md`,
+  `IMPLEMENTATION_PLAN.md`) being edited by other agents.
