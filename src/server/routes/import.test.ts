@@ -91,6 +91,31 @@ describe('POST /import', () => {
     expect(res.body.error).toMatch(/unsupported format/i);
   });
 
+  it('returns 400 for an invalid table name without touching ClickHouse', async () => {
+    const insert = vi.fn(async () => ({ query_id: 'x', rowsWritten: 0 }));
+
+    const res = await request(appWith(executorWith(insert)))
+      .post('/import')
+      .field('table', 'bad; DROP TABLE x')
+      .attach('file', Buffer.from('id\n1\n'), 'demo.csv');
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/invalid table name/i);
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it('accepts a database-qualified table name', async () => {
+    const insert = vi.fn(async () => ({ query_id: 'x', rowsWritten: 1 }));
+
+    const res = await request(appWith(executorWith(insert)))
+      .post('/import')
+      .field('table', 'analytics.events')
+      .attach('file', Buffer.from('id\n1\n'), 'demo.csv');
+
+    expect(res.status).toBe(200);
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ table: 'analytics.events' }));
+  });
+
   it('surfaces an insert rejection as a 400 with the message', async () => {
     const insert = vi.fn(async () => {
       throw new Error("Table demo doesn't exist");

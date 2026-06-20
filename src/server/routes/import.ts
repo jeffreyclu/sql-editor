@@ -17,6 +17,14 @@ const ALLOWED_FORMATS = new Set<DataFormat>([
 ]);
 const DEFAULT_FORMAT: DataFormat = 'CSVWithNames';
 
+/**
+ * An (optionally database-qualified) unquoted ClickHouse identifier, e.g. `events` or
+ * `analytics.events`. Validated up front so a bad name returns a clear 400 instead of a
+ * confusing ClickHouse parse error (review R3). Not a security control — `/query` already
+ * runs arbitrary SQL under the same credentials.
+ */
+const TABLE_NAME = /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$/;
+
 export interface ImportRouteDeps {
   /** Builds a ClickHouse executor for a request (injected for testability — DIP). */
   createExecutor: ExecutorFactory;
@@ -75,6 +83,10 @@ async function handleImport(
   }
   if (!table) {
     res.status(400).json({ error: "'table' is required" });
+    return;
+  }
+  if (!TABLE_NAME.test(table)) {
+    res.status(400).json({ error: `invalid table name '${table}'` });
     return;
   }
   if (!ALLOWED_FORMATS.has(format)) {

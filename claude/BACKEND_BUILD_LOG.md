@@ -241,6 +241,8 @@ existing ClickHouse table.
 - **memoryStorage + size cap** (`DEFAULT_MAX_UPLOAD_BYTES = 50 MB`): simple and memory-bounded by
   the cap. True disk/stream-through for very large files is future hardening.
 - **Insert into an existing table only** — schema inference / table creation is out of scope.
+- **Table name validated** as an optionally db-qualified identifier (review R3) — a bad name gets a
+  clear 400 before reaching ClickHouse. Not a security control (`/query` already runs arbitrary SQL).
 - **Format whitelist** (`CSV`/`CSVWithNames`/`TabSeparated`/`TabSeparatedWithNames`/`JSONEachRow`)
   so an arbitrary string can't reach ClickHouse.
 - **Insert rejections → 400** with the ClickHouse message (the common case is user-correctable:
