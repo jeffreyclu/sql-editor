@@ -213,3 +213,47 @@ No change to `StatementResult`, so the FE mirror (`web/src/api/types.ts`) needs 
 - Left uncommitted (not backend-owned): `web/`, `vite.config.ts`, `tsconfig.node.json`, the
   `FRONTEND_*` logs, and the shared planning docs (`CLAUDE.md`, `DECISION_LOG.md`, `SKILL.md`,
   `IMPLEMENTATION_PLAN.md`) being edited by other agents.
+
+---
+
+## Slice 3 — File import endpoint (`POST /import`)
+
+- **Date:** 2026-06-20
+- **Status:** Complete, awaiting review. Tests **77 passed**; verified E2E against live ClickHouse.
+- **Plan phase:** 8 (previously "later"; the deferred bonus per DL-006).
+
+### What was built
+
+The backend half of the future `fileImportPlugin`: stream an uploaded file's rows into an
+existing ClickHouse table.
+
+| File | Responsibility |
+|---|---|
+| `src/server/routes/import.ts` | `POST /import` (multipart): fields `file`, `table`, optional `format` (default `CSVWithNames`, whitelisted). Validates input, streams the upload into ClickHouse, returns `{ table, format, rowsWritten?, queryId }`. Multer runs inline so its errors return JSON. |
+| `src/server/clickhouse.ts` | Extended the `ClickHouseExecutor` port with `insert({ table, values, format })` → `{ query_id, rowsWritten? }` (reads `summary.written_rows`). |
+| `src/server/app.ts` | Mounts `/import` (reuses the injected `createExecutor`). |
+| `src/server/routes/import.test.ts` | Supertest coverage: CSV streamed to the right table, explicit format, 400s (missing file/table, unsupported format, insert rejection), 413 (oversized). |
+
+### Key decisions / trade-offs
+
+- **multer** for `multipart/form-data` parsing (DL-006 named it). Express has no native
+  multipart parser; multer is the de-facto Express middleware for file uploads.
+- **memoryStorage + size cap** (`DEFAULT_MAX_UPLOAD_BYTES = 50 MB`): simple and memory-bounded by
+  the cap. True disk/stream-through for very large files is future hardening.
+- **Insert into an existing table only** — schema inference / table creation is out of scope.
+- **Format whitelist** (`CSV`/`CSVWithNames`/`TabSeparated`/`TabSeparatedWithNames`/`JSONEachRow`)
+  so an arbitrary string can't reach ClickHouse.
+- **Insert rejections → 400** with the ClickHouse message (the common case is user-correctable:
+  unknown table, type mismatch, malformed rows).
+
+### Gotcha found + fixed (by E2E, not the unit test)
+
+`Readable.from(buffer)` yields an **object-mode** stream, which the ClickHouse client rejects for
+raw formats ("expected Readable Stream with disabled object mode"). Fixed to
+`Readable.from([buffer], { objectMode: false })`, and added a regression assertion
+(`readableObjectMode === false`) since only the real client enforces this — the mock didn't.
+
+### Contract for the frontend
+
+`fileImportPlugin` should `POST /import` as `multipart/form-data` with `file` + `table`
+(+ optional `format`); success → `{ table, format, rowsWritten?, queryId }`, errors → `{ error }`.

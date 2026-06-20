@@ -113,3 +113,41 @@ hardens / before relying on it) · **NOTE** (non-blocking, logged for traceabili
 - **Coordination:** the new `/api/history` + `/api/queries` contracts (`HistoryEntry`, `SavedQuery`
   in `types.ts`) are **not yet mirrored** in `web/src/api/types.ts`; the FE must add them when it
   builds the history/saved features (now via TanStack Query, DL-020).
+
+---
+
+## Review R3 — Slice 3: `POST /import` (file-import, DL-006)
+
+- **Date:** 2026-06-20
+- **Reviewed:** `routes/import.ts` (+ test), `clickhouse.ts` (`insert` port), `app.ts` mount,
+  against `BACKEND_BUILD_LOG.md` Slice 3. `npm test` → **84 passed** (unified suite).
+- **Verdict:** ✅ **Approve — no blockers, no high-priority issues.**
+
+### What's solid (verified)
+- **DL-006 boundary clean:** the import endpoint is the backend half of `fileImportPlugin`;
+  `insert` added to the `ClickHouseExecutor` port (ISP/DIP), so the route is mockable and `app.ts`
+  reuses the injected `createExecutor`.
+- **Input hardened where it matters:** `format` is **whitelisted** (arbitrary strings can't reach
+  CH); upload size **capped** (50 MB, memoryStorage → memory-bounded); `file`/`table` presence
+  validated → 400.
+- **Error contract total:** multer run inline → `LIMIT_FILE_SIZE` = 413, other multer errors = 400,
+  insert rejection = 400 with CH's message, unexpected = `next` → terminal JSON handler. All `{ error }`.
+- **Correct stream handling:** `Readable.from([buffer], { objectMode: false })` — the object-mode
+  bug was caught by E2E and pinned with a `readableObjectMode === false` regression assertion (the
+  mock alone wouldn't catch it). Good instinct.
+- Mounted before the SPA fallback + error handler; `express.json` doesn't shadow multipart.
+
+### NOTES (non-blocking)
+- **`table` identifier is not validated** (only trimmed/non-empty) before reaching
+  `client.insert`, which interpolates it into `INSERT INTO <table> …`. I flagged this earlier as a
+  security item — but on review it is **not a privilege escalation here**: this is a SQL editor that
+  already runs arbitrary SQL via `/query` under the same credentials, so a crafted `table` grants
+  nothing new. Worth a small identifier-regex check anyway for **clearer errors** (reject bad names
+  up front instead of a confusing CH parse error). Low priority; not a blocker.
+- **Whole-file buffering** (memoryStorage) is bounded by the 50 MB cap; disk/stream-through for very
+  large files is future hardening — already acknowledged in the build log.
+
+### Coordination
+- FE `fileImportPlugin` should `POST /import` as `multipart/form-data` (`file` + `table` + optional
+  `format`); success → `{ table, format, rowsWritten?, queryId }`, errors → `{ error }`. No
+  `web/src/api/types.ts` change needed beyond an import-result type when the plugin is built.
