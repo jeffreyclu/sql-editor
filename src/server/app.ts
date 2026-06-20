@@ -8,6 +8,7 @@ import { createSavedQueryRepository, type SavedQueryRepository } from './db/save
 import { createQueryRouter } from './routes/query';
 import { createHistoryRouter } from './routes/history';
 import { createSavedQueriesRouter } from './routes/queries';
+import { createImportRouter } from './routes/import';
 
 /** Built SPA location (`vite build` → `dist/public`), served at `/` in production. */
 const SPA_DIR = path.resolve(process.cwd(), 'dist/public');
@@ -44,6 +45,7 @@ export function createApp(deps: Partial<AppDeps> = {}): Express {
   });
 
   app.use('/query', createQueryRouter({ createExecutor, rowLimit, historyRepository }));
+  app.use('/import', createImportRouter({ createExecutor }));
   app.use('/api/history', createHistoryRouter({ historyRepository }));
   app.use('/api/queries', createSavedQueriesRouter({ savedQueryRepository }));
 

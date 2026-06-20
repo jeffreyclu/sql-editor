@@ -33,6 +33,7 @@ function makeExecutor(handlers: { query?: QueryFn; command?: CommandFn }): Click
   return {
     query: handlers.query ?? (async (sql) => { throw new Error(`unexpected query: ${sql}`); }),
     command: handlers.command ?? (async (sql) => { throw new Error(`unexpected command: ${sql}`); }),
+    insert: async () => { throw new Error('unexpected insert'); },
   };
 }
 

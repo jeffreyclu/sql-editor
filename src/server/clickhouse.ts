@@ -1,5 +1,6 @@
-import { createClient, type ResponseJSON } from '@clickhouse/client';
+import { createClient, type DataFormat, type ResponseJSON } from '@clickhouse/client';
 import type { IncomingHttpHeaders } from 'http';
+import type { Readable } from 'stream';
 
 const CLICKHOUSE_URL = process.env.CLICKHOUSE_URL ?? 'http://localhost:8123';
 
@@ -20,16 +21,32 @@ export interface QueryOptions {
   maxRows?: number;
 }
 
+/** Parameters for streaming a file's rows into a table (file import — DL-006). */
+export interface InsertParams {
+  table: string;
+  /** Row data streamed in `format` (kept a stream so large uploads aren't re-buffered). */
+  values: Readable;
+  /** ClickHouse input format, e.g. `CSVWithNames`. */
+  format: DataFormat;
+}
+
+/** Outcome of an insert: the CH query id and, when reported, the number of rows written. */
+export interface InsertSummary {
+  query_id: string;
+  rowsWritten?: number;
+}
+
 /**
- * Narrow port over the ClickHouse client (ISP/DIP, DL-005): the query route depends
- * only on these two operations, which keeps it decoupled from the full client surface
- * and makes it trivial to mock in tests.
+ * Narrow port over the ClickHouse client (ISP/DIP, DL-005): routes depend only on these
+ * operations, which keeps them decoupled from the full client surface and trivial to mock.
  */
 export interface ClickHouseExecutor {
   /** Run a data-returning statement and return columns/rows/statistics as JSON. */
   query(sql: string, options?: QueryOptions): Promise<QueryResult>;
   /** Run a statement that returns no rows (DDL/DML/SET/...). */
   command(sql: string): Promise<{ query_id: string }>;
+  /** Stream rows from an uploaded file into a table (file import — DL-006). */
+  insert(params: InsertParams): Promise<InsertSummary>;
 }
 
 /** Builds an executor for a single request, forwarding that request's CH headers. */
@@ -74,5 +91,12 @@ export const createClickHouseExecutor: ExecutorFactory = (headers) => {
             : { max_result_rows: String(options.maxRows), result_overflow_mode: 'break' },
       }),
     command: (sql) => client.command({ query: sql }),
+    insert: async ({ table, values, format }) => {
+      const result = await client.insert({ table, values, format });
+      return {
+        query_id: result.query_id,
+        rowsWritten: result.summary ? Number(result.summary.written_rows) : undefined,
+      };
+    },
   };
 };
