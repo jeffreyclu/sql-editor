@@ -1,16 +1,21 @@
 import { defineConfig } from 'vitest/config';
 
 /**
- * Backend (Node) test configuration.
- *
- * Scoped to `src/**` so it runs the Express/SQL backend tests in a Node environment.
- * When the frontend adds jsdom-based component tests, this should grow into Vitest
- * `projects` (a Node `server` project + a jsdom `web` project) rather than widening
- * the environment here.
+ * Root Vitest workspace (DL-015 / review HIGH-1): `npm test` runs BOTH projects in one go —
+ * the Node backend suite (`src/**`) and the jsdom frontend suite (which keeps its own config
+ * under `web/`). Filter with `vitest --project server` or `--project web`.
  */
 export default defineConfig({
   test: {
-    environment: 'node',
-    include: ['src/**/*.test.ts'],
+    projects: [
+      {
+        test: {
+          name: 'server',
+          environment: 'node',
+          include: ['src/**/*.test.ts'],
+        },
+      },
+      './web/vitest.config.ts',
+    ],
   },
 });

@@ -8,6 +8,7 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   test: {
+    name: 'web',
     root: fileURLToPath(new URL('.', import.meta.url)),
     environment: 'jsdom',
     globals: true,
