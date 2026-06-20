@@ -1,3 +1,10 @@
 dist
 node_modules
 .DS_Store
+
+# SQLite persistence (query history + saved queries) — DL-013
+data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
