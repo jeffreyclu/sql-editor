@@ -19,8 +19,9 @@ ADR-lite: **Context → Decision → Consequences → Alternatives**.
   ClickHouse stack and gives us Table, Button, Select, Dialog, Tabs, Accordion,
   Toast, Alert, FileInput, and more out of the box.
 - **Decision:** Adopt `@clickhouse/click-ui` as the presentational component
-  library. Wrap the app in `<ClickUIProvider>` and import `@clickhouse/click-ui/cui.css`
-  at the entry point.
+  library. Wrap the app in `<ClickUIProvider>`, which delivers styles via its JS import
+  graph — **no manual CSS import** (v0.6.1 exposes no `cui.css` subpath; corrected per FE
+  review R1. Theming/tokens: DL-021).
 - **Consequences:**
   - Pulls in peer deps: `styled-components@^6`, `dayjs@^1.11`, `react@^18.3`.
   - Click UI ships **no interactive code editor** (its `CodeBlock` is read-only),

@@ -17,7 +17,7 @@ Versions/sizes below were gathered during the spike (mid-2026); treat as point-i
 
 | | Pros | Cons |
 |---|---|---|
-| **Buy `@clickhouse/click-ui`** | First-party ClickHouse design system; Table, Button, Select, Dialog, Tabs, Accordion, Toast, Alert, FileInput out of the box; Apache-2.0; on-brand for the assignment | Peer deps (`styled-components@6`, `dayjs`, `react@^18.3`); requires `<ClickUIProvider>` + `cui.css`; **no editor component** |
+| **Buy `@clickhouse/click-ui`** | First-party ClickHouse design system; Table, Button, Select, Dialog, Tabs, Accordion, Toast, Alert, FileInput out of the box; Apache-2.0; on-brand for the assignment | Peer deps (`styled-components@6`, `dayjs`, `react@^18.3`); requires `<ClickUIProvider>` (styles via import graph — no manual CSS import on v0.6.1); **no editor component** |
 | Build custom CSS | Zero deps, full control | Reinventing primitives; slower; less polished |
 
 **Decision:** Buy. Key finding: **Click UI ships no interactive editor** (its `CodeBlock`

@@ -337,7 +337,8 @@ seen in action immediately. **In tests**, the same array feeds the splitter/clas
 - **Context re-renders** → split contexts by update frequency + memoize (DL-010).
 - **Large result sets** → server-side row cap + `truncated` notice; virtualization deferred (DL-009).
 - **Plugin system kept minimal** by design (no event bus/lifecycle) to avoid over-engineering.
-- **Click UI** requires `<ClickUIProvider>` + `cui.css` + `styled-components` peer.
+- **Click UI** requires `<ClickUIProvider>` + `styled-components` peer; styles load via its import
+  graph — no manual `cui.css` import on v0.6.1 (DL-001/DL-021).
 
 ## Verification
 
