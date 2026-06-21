@@ -57,9 +57,10 @@ function ImportPanel() {
 
   return (
     <Container orientation="vertical" gap="lg" fillWidth>
-      {/* Wrapper so styles.css can shrink Click UI's "Files supported: …" line (FileUploadDescription)
-          below the title — the component exposes no prop for it (DL-017 escape hatch). */}
-      <div className="file-import__upload">
+      {/* Click UI Container wrapper (DL-017) so styles.css can shrink the FileUpload's
+          "Files supported: …" line (FileUploadDescription) below the title — the component
+          exposes no prop for it. */}
+      <Container className="file-import__upload" fillWidth>
         <FileUpload
           title="Drop a file or browse"
           size="md"
@@ -68,7 +69,7 @@ function ImportPanel() {
           onFileSelect={(selected) => setFile(selected)}
           onFileClose={() => setFile(null)}
         />
-      </div>
+      </Container>
 
       <Container orientation="vertical" gap="xs" fillWidth>
         <Text size="sm" color="muted">

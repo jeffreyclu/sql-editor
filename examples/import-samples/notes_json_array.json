@@ -1,0 +1,4 @@
+[
+  {"id": 1, "author": "alice", "body": "This file is a JSON array, not newline-delimited objects.", "score": 1},
+  {"id": 2, "author": "bob", "body": "JSONEachRow expects one object per line, so this should error.", "score": 2}
+]

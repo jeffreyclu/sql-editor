@@ -1,0 +1,5 @@
+id,ts,kind,value,ok
+1,2024-01-15 09:30:00,click,3.14,1
+2,2024-01-15 09:31:00,view
+3,2024-01-15 09:32:00,click,2.0,1,extra,trailing,columns
+4,2024-01-15 09:33:00,signup,5.0,0

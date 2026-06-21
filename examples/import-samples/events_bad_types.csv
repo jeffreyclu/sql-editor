@@ -1,0 +1,5 @@
+id,ts,kind,value,ok
+1,2024-01-15 09:30:00,click,3.14,1
+not_a_number,2024-01-15 09:31:00,view,1.0,1
+3,2024-01-15 09:32:00,click,oops,1
+4,nonsense-timestamp,view,2.0,1
