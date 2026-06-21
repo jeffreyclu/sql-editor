@@ -8,7 +8,7 @@ import { useSchema } from '../hooks/useSchema';
 import type { SchemaTree } from '../api/schema';
 
 // Container: connects the editor document, theme and autocomplete schema to the pure EditorSurface,
-// with copy/clear actions floated in the editor's top-right corner. Both confirm via a toast
+// with copy/clear actions floated in the editor's bottom-right corner. Both confirm via a toast
 // (DL-027); clear is destructive, so its toast offers Undo. Only this component subscribes to the
 // high-frequency `doc`, so typing re-renders just the editor (DL-010). The schema comes from the
 // same cached `useSchema` query the explorer panel uses (DL-025), reshaped for `sql({ schema })`.

@@ -129,7 +129,7 @@ body {
   border-bottom: 1px solid var(--click-global-color-stroke-muted);
 }
 
-/* Editor pane: copy/clear actions float in the top-right corner over the CodeMirror surface. */
+/* Editor pane: copy/clear actions float in the bottom-right corner over the CodeMirror surface. */
 .editor-pane {
   position: relative;
   height: 100%;
@@ -138,7 +138,7 @@ body {
 
 .editor-pane__actions {
   position: absolute;
-  top: 6px;
+  bottom: 6px;
   right: 14px;
   z-index: 2;
   display: flex;
