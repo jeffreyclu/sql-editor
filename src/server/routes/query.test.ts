@@ -200,6 +200,18 @@ describe('POST /query', () => {
       });
     });
 
+    it('skips history when recordHistory is false (DL-029)', async () => {
+      const historyRepository = createHistoryRepository(createDatabase(':memory:'));
+      const query = vi.fn(async (_sql: string) =>
+        jsonResult([{ a: 1 }], [{ name: 'a', type: 'UInt8' }]),
+      );
+      const app = createApp({ createExecutor: () => makeExecutor({ query }), historyRepository });
+
+      await request(app).post('/query').send({ query: 'SELECT 1 AS a', recordHistory: false });
+
+      expect(historyRepository.list()).toHaveLength(0);
+    });
+
     it('records a failed run with error message and error status', async () => {
       const historyRepository = createHistoryRepository(createDatabase(':memory:'));
       const command = vi.fn(async (_sql: string) => {

@@ -35,11 +35,18 @@ export function createQueryRouter({
   const router = Router();
 
   router.post('/', async (req, res) => {
-    const { query } = (req.body ?? {}) as { query?: unknown };
+    const { query, recordHistory: record } = (req.body ?? {}) as {
+      query?: unknown;
+      recordHistory?: unknown;
+    };
     if (typeof query !== 'string' || query.trim() === '') {
       res.status(400).json({ error: "'query' is required" });
       return;
     }
+
+    // Internal reads (e.g. the schema fetch) opt out with `recordHistory: false` so they don't
+    // pollute the user's run history (DL-029).
+    const historyRepo = record === false ? undefined : historyRepository;
 
     let statements: string[] = [];
     try {
@@ -55,12 +62,12 @@ export function createQueryRouter({
         }
       }
 
-      recordHistory(historyRepository, query, statements.length, results);
+      recordHistory(historyRepo, query, statements.length, results);
       res.status(200).json({ statements: results } satisfies RunResponse);
     } catch (error) {
       // Transport / unexpected server fault (e.g. client construction) — not a SQL error.
       const message = toErrorMessage(error);
-      recordHistory(historyRepository, query, statements.length, [], message);
+      recordHistory(historyRepo, query, statements.length, [], message);
       res.status(500).json({ error: message });
     }
   });

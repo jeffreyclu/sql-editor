@@ -3,7 +3,11 @@ import type { RunResponse } from './types';
 // The service layer: a framework-agnostic typed wrapper over the backend HTTP API. No React
 // here (DL-005). It's exposed as an interface so it can be injected/mocked in tests (DIP).
 export interface ApiClient {
-  runQuery(query: string, signal?: AbortSignal): Promise<RunResponse>;
+  runQuery(
+    query: string,
+    signal?: AbortSignal,
+    options?: { recordHistory?: boolean },
+  ): Promise<RunResponse>;
 }
 
 /**
@@ -21,11 +25,17 @@ export class ApiError extends Error {
   }
 }
 
-async function runQuery(query: string, signal?: AbortSignal): Promise<RunResponse> {
+async function runQuery(
+  query: string,
+  signal?: AbortSignal,
+  options?: { recordHistory?: boolean },
+): Promise<RunResponse> {
   const response = await fetch('/query', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify(
+      options?.recordHistory === false ? { query, recordHistory: false } : { query },
+    ),
     signal,
   });
 

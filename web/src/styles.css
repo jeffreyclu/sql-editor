@@ -93,7 +93,22 @@ body {
 .plugin-panel {
   flex: 0 0 300px;
   overflow: auto;
+}
+
+.plugin-panel--left {
   border-right: 1px solid var(--click-global-color-stroke-muted);
+}
+
+.plugin-panel--right {
+  border-left: 1px solid var(--click-global-color-stroke-muted);
+}
+
+/* Schema explorer tree: Click UI's Accordion doesn't indent its content, so nested tables/columns
+   are offset with a left margin + a guide line for the parent-child hierarchy (DL-025). */
+.schema-tree__children {
+  margin-left: 12px;
+  padding-left: 8px;
+  border-left: 1px solid var(--click-global-color-stroke-muted);
 }
 
 .app-body {
@@ -153,6 +168,23 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Right-side meta cluster (badge · metrics · actions): never shrinks, so the SQL line absorbs the
+   squeeze and the metrics stay on one line instead of wrapping. */
+.statement-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Result actions (CSV export, …) sit in the header meta cluster, always visible. */
+.statement-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 /* Column header (name over type) inside the Click UI results Table. */

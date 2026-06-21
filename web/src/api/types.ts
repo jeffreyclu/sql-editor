@@ -35,6 +35,8 @@ export interface RunResponse {
 
 export interface RunRequest {
   query: string;
+  /** Internal reads (e.g. schema) set this `false` to skip history logging (DL-029). */
+  recordHistory?: boolean;
 }
 
 /** An explicit, named query the user saved for re-use (DL-013). Mirrors the backend `SavedQuery`. */

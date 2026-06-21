@@ -10,10 +10,12 @@ import { useQuery } from '../state/QueryProvider';
 // (setDoc/run) the plugin acts through.
 export interface PluginPanelProps {
   pluginId: string;
+  /** Which edge the panel docks to; drives its border side (DL-026). Default `'left'`. */
+  placement?: 'left' | 'right';
   onClose: () => void;
 }
 
-export function PluginPanel({ pluginId, onClose }: PluginPanelProps) {
+export function PluginPanel({ pluginId, placement = 'left', onClose }: PluginPanelProps) {
   const plugins = usePlugins();
   const { setDoc, getDoc } = useEditorActions();
   const { run } = useQuery();
@@ -25,7 +27,7 @@ export function PluginPanel({ pluginId, onClose }: PluginPanelProps) {
 
   return (
     <Panel
-      className="plugin-panel"
+      className={`plugin-panel plugin-panel--${placement}`}
       color="muted"
       orientation="vertical"
       gap="sm"
