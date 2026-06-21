@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CardHorizontal, Container, IconButton, Text, TextField } from '@clickhouse/click-ui';
 import type { EditorPlugin, PluginContext } from './types';
 import { useDeleteSavedQuery, useSaveQuery, useSavedQueries } from '../hooks/useSavedQueries';
+import { useToast } from '../hooks/useToast';
 
 // The Saved queries plugin (DL-006 / DL-013): save the current editor script under a name, then
 // load saved queries back (TanStack useQuery + save/delete mutations — DL-020).
@@ -18,6 +19,7 @@ function SavedQueriesPanel({ ctx }: { ctx: PluginContext }) {
   const { data, isPending, isError } = useSavedQueries();
   const saveQuery = useSaveQuery();
   const deleteQuery = useDeleteSavedQuery();
+  const toast = useToast();
 
   const trimmedName = name.trim();
   const canSave = trimmedName.length > 0 && ctx.getDoc().trim().length > 0 && !saveQuery.isPending;
@@ -29,7 +31,16 @@ function SavedQueriesPanel({ ctx }: { ctx: PluginContext }) {
     if (trimmedName.length === 0 || sql.trim().length === 0 || saveQuery.isPending) {
       return;
     }
-    saveQuery.mutate({ name: trimmedName, sql }, { onSuccess: () => setName('') });
+    saveQuery.mutate(
+      { name: trimmedName, sql },
+      {
+        onSuccess: () => {
+          setName('');
+          toast.success('Query saved');
+        },
+        onError: () => toast.error('Could not save the query'),
+      },
+    );
   };
 
   return (
@@ -74,7 +85,12 @@ function SavedQueriesPanel({ ctx }: { ctx: PluginContext }) {
                 type="ghost"
                 size="sm"
                 title={`Delete ${query.name}`}
-                onClick={() => deleteQuery.mutate(query.id)}
+                onClick={() =>
+                  deleteQuery.mutate(query.id, {
+                    onSuccess: () => toast.success('Query deleted'),
+                    onError: () => toast.error('Could not delete the query'),
+                  })
+                }
               />
             </Container>
           ))}
