@@ -400,6 +400,38 @@ hardens / before relying on it) · **NOTE** (non-blocking, logged for traceabili
 ### Coordination
 - HIGH-1 spans FE + BE. Also: `schemaPlugin` is now right-placed (DL-028), so plan/skill lines that say
   "right panel deferred" are stale (decision-keeper follow-up).
+
+---
+
+## Review R11 — Slice 3e: File import plugin (DL-006)
+
+- **Date:** 2026-06-21
+- **Reviewed:** `api/import.ts` (+test), `hooks/useImportFile.ts`, `plugins/fileImportPlugin.tsx`
+  (+test), `main.tsx`. `npm test` → **165 passed** (22 files); `tsc -p web` clean; `npm run build` OK.
+  (Built by a background agent that hit its session limit after writing the code/tests but before the
+  build-log entry — entry added by the reviewer.)
+- **Verdict:** ✅ **Approve — no blockers.**
+
+### Solid
+- **Contract exact (review R3):** `importFile` POSTs `multipart/form-data` (`file`/`table`/optional
+  `format`) with **no manual Content-Type** (browser sets the boundary), throws `ApiError` reading the
+  backend `{ error }` on non-ok. `ImportResult` mirrors `{ table, format, rowsWritten?, queryId }`.
+  `IMPORT_FORMATS` whitelist mirrors the backend.
+- **DL-020:** `useImportFile` is a `useMutation` that **invalidates nothing** — correct: import inserts
+  into an existing table, no cached list/schema changes. Drives pending/disabled + toasts.
+- **DL-006/026/028:** `fileImportPlugin` (`placement:'left'` — a "source" action), `icon:'upload'`,
+  same `renderPanel`+hook-in-child pattern as the other plugins.
+- **DL-017:** Click UI `FileUpload`/`Select`/`TextField`/`Button` throughout; `tsc -p web` clean is
+  strong evidence the props are valid. Thoughtful catch: widening `FileUpload`'s `supportedFileTypes`
+  so it doesn't reject CSV/TSV/JSON.
+- **DL-027:** success toast (`Imported N rows into <table>`, singular/plural) + error toast (surfaces
+  the backend message); re-checks inputs at click (avoids the saveQuery stale-enable issue).
+- **Tests substantive:** API (FormData fields, format omitted, ApiError) + plugin (disabled until
+  file+table, then POSTs FormData) — the riskiest paths covered.
+
+### NOTE (non-blocking)
+- File-size/type are not pre-validated client-side; the backend enforces the 50 MB cap (413) and
+  format, surfaced via the error toast. Fine — server is the source of truth.
 - **Single open-panel state.** `App` tracks one `openPluginId`; fine while every plugin is left-placed,
   but when a right-placement plugin lands (the DL-026 seam) you'll want independent left/right open
   state so a source + a detail can show together.

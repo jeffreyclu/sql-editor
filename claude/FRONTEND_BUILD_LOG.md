@@ -611,3 +611,72 @@ a guide line via design tokens) so the database → table → column hierarchy r
 
 - Not clicked through live against real ClickHouse (no running backend/container in this slice);
   the data path is exercised in tests via a mocked `RunResponse` matching the `/query` contract.
+
+---
+
+## Slice 3e — File import plugin (DL-006)
+
+- **Date:** 2026-06-21
+- **Scope:** the frontend half of the already-built `POST /import` (backend review R3/R5),
+  attached as an editor plugin (DL-006) — pick a file, name a target table, choose a format, and
+  stream it into an **existing** ClickHouse table.
+
+### What landed
+
+- **`web/src/api/import.ts`** — thin typed fetch fn `importFile({ file, table, format })`. Builds
+  `FormData` (`file` + `table` + optional `format`), `POST /import` (no manual `Content-Type` — the
+  browser sets the multipart boundary), returns an `ImportResult` (`{ table, format, rowsWritten?,
+  queryId }`, mirroring the backend contract), and throws `ApiError` reading the backend `{ error }`
+  body on `!ok` (same pattern as `apiClient`/`savedQueries`). Also exports the `IMPORT_FORMATS`
+  whitelist + `ImportFormat` type, mirrored from the backend (`CSVWithNames` default, plus `CSV`,
+  `TabSeparated{,WithNames}`, `JSONEachRow`).
+- **`web/src/hooks/useImportFile.ts`** — a TanStack `useMutation` wrapping `importFile` (DL-020).
+  Invalidates **nothing**: import inserts into an existing table, so the schema/history caches are
+  unchanged (unlike save/delete). `useMutation` supplies the pending/error states the panel surfaces.
+- **`web/src/plugins/fileImportPlugin.tsx`** — `EditorPlugin` (`id: 'import'`, `icon: 'upload'` (a
+  verified Click UI `IconName`), `toolbarLabel: 'Import'`, `title: 'Import data'`, `placement:
+  'left'` — a "source" action alongside Examples/History/Saved, DL-026/DL-028). `renderPanel`
+  returns a child `ImportPanel` so the hooks aren't called conditionally from `PluginPanel` (the
+  History/Saved/Schema hook-safety pattern). Click UI-first (DL-017): `FileUpload` (file picker),
+  `TextField` (table), `Select` + `Select.Item` (format whitelist), `Button` (submit). Submit is
+  disabled until a file **and** a non-empty table are chosen and re-checks at click time; on
+  success/error it toasts from the mutation callbacks (DL-027) — `Imported N rows into <table>`
+  using `rowsWritten`, or the backend error message.
+- **`web/src/main.tsx`** — registered `fileImportPlugin` in the `plugins` array (minimal edit).
+
+### Decisions / trade-offs
+
+- **`FileUpload`'s `supportedFileTypes`** defaults to `['.txt', '.sql']`, which would *reject* a
+  picked `.csv`/`.tsv`/`.json` at the component level. Widened it to the extensions the import
+  formats use (`.csv`, `.tsv`, `.tab`, `.txt`, `.json`, `.ndjson`); the backend `format` field
+  stays the real source of truth (the whitelist is enforced server-side).
+- **No cache invalidation** (justified above) — keeps the mutation minimal (DL-008); avoids a
+  speculative schema refetch the import doesn't actually require.
+- **Toasts from the action layer only** (mutation `onSuccess`/`onError`), never from the panel's
+  presentational children (DL-027/DL-005).
+
+### Tests (DL-015)
+
+- `web/src/api/import.test.ts` — `importFile`: asserts a `POST /import` with a `FormData` body
+  carrying `file`/`table`/`format`; that `format` is omitted when not supplied; and that a non-ok
+  response throws an `ApiError` carrying the backend `{ error }` message + status.
+- `web/src/plugins/fileImportPlugin.test.tsx` — plugin metadata (`placement: 'left'`, `upload`
+  icon); render + submit: Import is disabled until a file (fired on `FileUpload`'s hidden
+  `input[type=file]`) **and** a table are present, then clicking it POSTs the expected `FormData`
+  (mocked `fetch`).
+
+### Verification
+
+- `npm run test:server` → **134 passed** (8 files) — green, unchanged by this slice.
+- `npm run test:web` → **31 passed** (14 files), including the 5 new import tests.
+- `npx tsc -p web/tsconfig.json --noEmit` → **0 errors** (baseline was also 0 in this working tree;
+  the prompt-flagged pre-existing `onExportCsv` CSV-WIP error was **not present** here — no
+  `onExportCsv` references exist in `web/src` — so there is nothing to distinguish; this slice adds
+  **no new** type errors regardless).
+
+### Not verified
+
+- Not exercised live against a running backend/ClickHouse (no container in this slice); the data
+  path is covered by tests mocking `fetch` against the `POST /import` contract from review R3.
+- The CSV-export WIP files the prompt said to avoid were **not present** in this working tree (no
+  `onExportCsv`, no `csvExportPlugin.ts`/`resultActions.ts`); nothing in those files was touched.
