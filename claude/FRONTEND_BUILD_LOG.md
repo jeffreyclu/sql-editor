@@ -540,3 +540,74 @@ React Context, no selector lib, DL-019):
 
 - `npm run test:web` -> 13 passed (7 files); `tsc` clean; `npm run build` OK. `PluginBar` test
   became `PluginRail` (clicks the icon toggle by its aria-label).
+
+---
+
+## Slice 3d — Schema explorer + autocomplete (DL-025)
+
+- **Date:** 2026-06-20
+- **Status:** Complete, awaiting review. Tests green (152 across 18 files, +6 new); typecheck clean;
+  prod build OK.
+- **Plan phase:** schema explorer + autocomplete, scheduled after Saved queries (DL-025).
+
+### What was built
+
+| File | Responsibility |
+|---|---|
+| `web/src/api/schema.ts` | `fetchSchema` runs the existing **`POST /query`** (via `apiClient.runQuery`) against `system.columns` — **no new backend endpoint** (DL-025) — and `rowsToTree` transforms the flat `{database,table,column,type}` rows (from `RunResponse.statements[0].rows`) into a `database → table → columns[{name,type}]` tree. Exposes `SCHEMA_QUERY_KEY` + `SchemaTree`/`SchemaDatabase`/`SchemaTable`/`SchemaColumn`. |
+| `web/src/hooks/useSchema.ts` | TanStack `useQuery` (key `['schema']`, `staleTime` 5 min) wrapping `fetchSchema` (DL-020). One query feeds both the panel and autocomplete. |
+| `web/src/plugins/schemaPlugin.tsx` | `EditorPlugin` (`placement: 'right'`, icon `database`, label/title `Schema`): databases → tables → **expandable columns** via Click UI `Accordion` (nested) + `Text`; loading/error/empty states; the hook is wrapped in a child component (hook-safety, mirrors History/Saved). An `insert-row` `IconButton` per table inserts the table name into the editor — `appendIdentifier(ctx.getDoc(), name)` (whitespace-separated append, since `PluginContext` only has `setDoc`/`getDoc`). |
+| `web/src/components/EditorSurface.tsx` (edit) | Stays **pure**: new optional `schema?: Record<string,string[]>` prop; builds `sql(schema ? { schema } : undefined)` (schema-aware autocomplete, DL-025), memoized on `schema`. Value/onChange/theme unchanged. |
+| `web/src/containers/EditorPane.tsx` (edit) | Calls `useSchema`, reshapes the tree to the `{ [table]: string[] }` map `sql({ schema })` expects (tables keyed both unqualified `events` and qualified `db.events`), and passes it to `EditorSurface`. |
+| `web/src/main.tsx` (edit) | Registers `schemaPlugin` (examples, history, saved, **schema**). |
+
+### Why / key decisions
+
+- **One cached query, two consumers (DL-025/DL-020):** `useSchema` is the single source for the
+  panel **and** autocomplete, so `system.columns` is read once.
+- **No backend work (DL-025):** reuses `POST /query`; `fetchSchema` surfaces a per-statement SQL
+  error as an `ApiError` so `useQuery` reports `isError`.
+- **Click UI first (DL-017):** the expandable tree uses Click UI `Accordion` (nested databases →
+  tables) rather than a bespoke disclosure; columns are `Text` rows.
+- **Pure surface preserved (DL-019/DL-023):** the editor stays presentational — the container owns
+  the `useSchema` call and the shape transform.
+
+### Placement change (product-owner directive, 2026-06-20)
+
+Per the product owner, the schema/inspector panel docks on the **right**, not the left — it's the
+inspection/detail side of the rail (DL-026). Implemented with the existing `placement` seam:
+
+- `schemaPlugin.placement = 'right'`.
+- `App.tsx`: independent left/right open-state + a second `<PluginRail placement="right">` and a
+  right-docked `<PluginPanel placement="right">` after the editor body, so a left "source" panel
+  (Examples/History/Saved) and the right Schema panel can show **simultaneously** (DL-026).
+- `PluginPanel` gains a `placement?` prop → `plugin-panel--left|right` class; `styles.css` moves the
+  panel border to the docking edge (`--left` border-right, `--right` border-left). The right rail
+  was already supported by `PluginRail` (placement-parameterized; renders nothing with no
+  right-placement plugin).
+
+### Tree indentation (product-owner feedback, 2026-06-20)
+
+Click UI's `Accordion` doesn't indent its content, so nested tables/columns sat flush with their
+parent. Wrapped each accordion's children in a `.schema-tree__children` div (left margin/padding +
+a guide line via design tokens) so the database → table → column hierarchy reads as a tree.
+
+### Tests (DL-015)
+
+- `web/src/api/schema.test.ts` — `rowsToTree`: grouping, empty input, skipping malformed rows.
+- `web/src/plugins/schemaPlugin.test.tsx` — renders from a mocked `fetch` returning a `RunResponse`;
+  expanding a database and clicking "Insert" appends the table name via `setDoc`.
+- `web/src/components/EditorSurface.test.tsx` — mounts with and without a `schema` prop (the
+  `sql({ schema })` autocomplete extension builds).
+
+### Verification
+
+- `npm test` → **152 passed** across 18 files (baseline was 146).
+- `tsc -p web/tsconfig.json --noEmit` → clean.
+- `npm run build` → `dist/public` emitted (2613 modules; CSS 311 kB / 32 kB gz, JS 1.67 MB /
+  490 kB gz; pre-existing >500 kB single-chunk warning, unchanged scope).
+
+### Not verified
+
+- Not clicked through live against real ClickHouse (no running backend/container in this slice);
+  the data path is exercised in tests via a mocked `RunResponse` matching the `/query` contract.

@@ -356,6 +356,50 @@ hardens / before relying on it) · **NOTE** (non-blocking, logged for traceabili
 - A `git reset HEAD~2` un-committed the toast commit (`a723b22`) and the R8 review commit
   (`1a15084`); both survive **staged** (and in reflog) and need re-committing. Symptom of multiple
   agents committing to one branch.
+
+---
+
+## Review R10 — Slice 3d: Schema explorer + autocomplete (DL-025 / DL-028)
+
+- **Date:** 2026-06-20
+- **Reviewed:** `api/schema.ts` (+test), `hooks/useSchema.ts`, `plugins/schemaPlugin.tsx` (+test),
+  `components/EditorSurface.tsx` (+test), `containers/EditorPane.tsx`, `containers/PluginPanel.tsx`,
+  `App.tsx`, `main.tsx`, `styles.css`. `npm test` → **152 passed** (18 files); `tsc` clean; build OK.
+- **Verdict:** ✅ **Approve — no hard blockers.** 1 HIGH follow-up.
+
+### Solid
+- **DL-025:** one cached `useSchema` (`useQuery`, 5-min `staleTime`) over the EXISTING `POST /query`
+  (`system.columns`) feeds **both** the panel and autocomplete — no new backend endpoint. `rowsToTree`
+  is defensive (type-guards, skips malformed rows, order-independent) and well-tested.
+- **Autocomplete:** `EditorSurface` stays pure — optional `schema` prop → `sql({ schema })`,
+  `extensions` memoized on `[schema]` so completion activates once schema loads (no per-keystroke
+  rebuild). Bonus: line-wrapping.
+- **DL-026/DL-028:** `schemaPlugin` `placement: 'right'`; `PluginPanel` is side-aware; `App` has
+  independent left/right open-state (a left source + right schema can show together). Right rail built.
+- **DL-017/DL-023:** Click UI `Accordion`/`Container`/`Text`/`IconButton`/`Panel`; only bespoke bits
+  are the indent wrapper (Accordion doesn't indent) + the editor (sanctioned). Hook-safety preserved.
+  Table insert appends the identifier via `getDoc`+`setDoc` (sensible per DL-025; ctx has no cursor API).
+- Tests are substantive (transform cases + render→expand→insert). No new FE↔BE contract.
+
+### HIGH-1 — schema fetches pollute query history — ✅ RESOLVED (DL-029)
+- **Resolution:** `/query` now accepts `recordHistory: false` (DL-029); `fetchSchema` sets it, so
+  schema reads aren't logged. Backend test added; `npm run test:server` → 134 pass.
+- `fetchSchema` goes through `POST /query`, and the backend **auto-logs every `/query` run** to
+  history (DL-013). `useSchema` fires when `EditorPane` mounts (app load), and on each refetch — so a
+  `SELECT … FROM system.columns` row the user never ran is recorded and surfaces in the **History
+  panel**. The schema feature pollutes the history feature.
+- **Fix (FE+BE coordination):** give `/query` a "don't log" path for internal reads (e.g. a header/flag
+  the schema fetch sets; the route skips `recordHistory`), **or** add the dedicated `/api/schema`
+  endpoint that DL-025 documented as the fallback ("revisit if needed" — this is the trigger).
+
+### NOTES (non-blocking)
+- Schema is fetched eagerly on app load even if the panel never opens (one `system.columns` query per
+  load). Tied to HIGH-1; acceptable once that's resolved (autocomplete wants it eagerly).
+- Insertion appends at the doc end, not at the cursor (ctx exposes no selection API) — fine per DL-025.
+
+### Coordination
+- HIGH-1 spans FE + BE. Also: `schemaPlugin` is now right-placed (DL-028), so plan/skill lines that say
+  "right panel deferred" are stale (decision-keeper follow-up).
 - **Single open-panel state.** `App` tracks one `openPluginId`; fine while every plugin is left-placed,
   but when a right-placement plugin lands (the DL-026 seam) you'll want independent left/right open
   state so a source + a detail can show together.

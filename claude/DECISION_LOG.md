@@ -691,3 +691,24 @@ ADR-lite: **Context → Decision → Consequences → Alternatives**.
   use the right side.
 - **Alternatives considered:** Schema on the left with the other sources (the DL-026 default) —
   rejected by the product owner in favour of a right-docked explorer layout.
+
+---
+
+## DL-029 — `/query` `recordHistory` opt-out for internal reads
+
+- **Date:** 2026-06-20
+- **Status:** Accepted (implements the DL-025 fallback; resolves FE review R10 HIGH-1)
+- **Decided by:** Engineering (reviewer fix, per product-owner "fix HIGH-1")
+- **Context:** The schema explorer reuses `POST /query` (DL-025), but the backend auto-logs **every**
+  `/query` run to history (DL-013) — so schema reads on app load polluted the user's History panel
+  (R10 HIGH-1).
+- **Decision:** `POST /query` accepts an optional **`recordHistory: boolean`** in the body
+  (default `true`). When `false`, the route skips history logging (passes `undefined` to the history
+  repository). The schema fetch (`fetchSchema`) sets `recordHistory: false`; the run-query mutation
+  keeps the default (logs). `apiClient.runQuery` gains an `{ recordHistory }` option; `RunRequest`
+  documents the field.
+- **Consequences:** internal reads no longer pollute the run history. Covered by a backend test
+  (`recordHistory:false` → no history row).
+- **Alternatives considered:** a dedicated `GET /api/schema` (DL-025's other fallback — cleaner
+  separation, but more code and moves the transform server-side) — deferred; a request header instead
+  of a body field (equivalent; body chosen for simplicity).
