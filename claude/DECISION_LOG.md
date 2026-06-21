@@ -642,3 +642,30 @@ ADR-lite: **Context → Decision → Consequences → Alternatives**.
 - **Alternatives considered:** text buttons (clutter as plugins grow); icon+label (widest); build
   both panels now (empty right → over-engineering); no placement field (a later right panel would
   mean reworking the plugin interface + layout).
+
+---
+
+## DL-027 — Toast notifications for user-action confirmations
+
+- **Date:** 2026-06-20
+- **Status:** Accepted
+- **Decided by:** User
+- **Context:** Discrete user actions (save query, copy to clipboard, clear editor, file import) need
+  lightweight, transient confirmation feedback.
+- **Decision:** Use **Click UI's toast system** (provided by the root `ClickUIProvider` — already in
+  the tree; design-system-first, DL-017). Expose it via a thin **`useToast()`** hook so business-logic
+  hooks / containers / plugins fire toasts (`toast.success('Query saved')`, etc.) **without
+  presentational components importing Click UI toast internals** (components stay pure — DL-005/DL-023).
+  - Fire toasts from the **action layer** (containers / plugins / mutation `onSuccess`|`onError`), not
+    from pure components.
+  - **Scope:** transient confirmations of discrete actions — query saved/updated/deleted, copied to
+    clipboard, editor cleared, import succeeded/failed.
+  - **Do NOT toast outcomes already surfaced inline** (per-statement query results/errors) — toasts
+    are for *actions*, not query results; avoid double-surfacing.
+  - **Verify the exact Click UI v0.6.1 toast API** (hook/props) against its storybook before use —
+    don't assume the signature (cf. the `cui.css` mistake, DL-001).
+- **Consequences:** consistent, on-brand transient feedback; presentational components stay pure; one
+  wrapper to swap if the toast mechanism ever changes.
+- **Alternatives considered:** a custom toast component (rejected — Click UI ships one, DL-017);
+  inline status text only (rejected — less discoverable for transient confirmations); toasting query
+  errors too (rejected — already shown inline; would double-surface).

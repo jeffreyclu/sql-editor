@@ -32,6 +32,8 @@ design, state management, async/error/loading handling, UX, and trade-off reason
   backed by a lightweight embedded SQLite DB (DL-013).
 - Schema-aware autocomplete, cached via TanStack Query (DL-020).
 - Light/dark theming via Click UI tokens + a `ThemeProvider`/switcher (DL-021).
+- Toast notifications confirming discrete user actions — query saved, copied to clipboard, editor
+  cleared, import done — via Click UI's toast system (DL-027).
 - Layered, plugin-extensible architecture per the driving principles.
 
 **Deferred (designed-for, not built)**
@@ -229,6 +231,7 @@ web/
       goldenQueries.ts             # curated golden dataset — powers UI + tests (DL-016)
     hooks/
       (editor hooks)               # useEditorDoc / useEditorIsEmpty / useEditorActions — split by frequency (DL-010), from state/EditorProvider
+      useToast.ts                  # thin wrapper over Click UI toasts — action confirmations (DL-027)
       usePlugins.ts                # access registry
     components/                    # pure + memoized; COMPOSE Click UI primitives first (DL-017)
       RunButton.tsx                # Click UI <Button>
@@ -252,7 +255,7 @@ web/
 machine. The mutation fn passes an `AbortSignal` so a new run cancels the in-flight one (wired to a
 Cancel button). History/saved/schema are `useQuery`; save/delete call `invalidateQueries`.
 
-**Cheap, high-value UX:** per-statement elapsed/rowCount,
+**Cheap, high-value UX:** toast confirmations for discrete actions (DL-027), per-statement elapsed/rowCount,
 explicit loading/empty/error states, "remaining statements not run" on error, persist last
 script to `localStorage`.
 
