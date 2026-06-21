@@ -35,8 +35,16 @@ function HistoryList({ ctx }: { ctx: PluginContext }) {
           size="sm"
           title={
             // Cap the SQL preview's height so a long (even single-line) query scrolls instead
-            // of growing the card.
-            <Container maxHeight="4.5rem" overflow="auto" fillWidth>
+            // of growing the card. orientation="vertical" + alignItems="start" so the text is
+            // top-aligned, not vertically centered — Click UI's Container defaults to a centering
+            // horizontal flex, which clipped the top/bottom of a wrapped preview.
+            <Container
+              orientation="vertical"
+              alignItems="start"
+              maxHeight="4.5rem"
+              overflow="auto"
+              fillWidth
+            >
               <Text size="sm" weight="mono">
                 {firstLine(entry.sql)}
               </Text>
