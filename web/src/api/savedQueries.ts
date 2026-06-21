@@ -26,6 +26,22 @@ export async function createSavedQuery(input: NewSavedQuery): Promise<SavedQuery
   return (await response.json()) as SavedQuery;
 }
 
+/** Update a saved query's name and/or SQL (`PUT /api/queries/:id`); returns the updated record. */
+export async function updateSavedQuery(
+  id: string,
+  changes: Partial<NewSavedQuery>,
+): Promise<SavedQuery> {
+  const response = await fetch(`/api/queries/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(changes),
+  });
+  if (!response.ok) {
+    throw new ApiError(await readErrorMessage(response), response.status);
+  }
+  return (await response.json()) as SavedQuery;
+}
+
 /** Delete a saved query (`DELETE /api/queries/:id`). */
 export async function deleteSavedQuery(id: string): Promise<void> {
   const response = await fetch(`/api/queries/${encodeURIComponent(id)}`, { method: 'DELETE' });

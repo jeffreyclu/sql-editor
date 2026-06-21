@@ -209,16 +209,35 @@ body {
 
 /* Toasts (DL-034): Click UI only tints the toast *icon* by type, leaving a neutral surface. Tint
    the whole toast with the design-system feedback colours so success/error/info read at a glance.
-   The doubled class out-specifies the styled-component's single-class background without !important. */
+   The doubled class out-specifies the styled-component's single-class background without !important.
+   The alert tokens are semi-transparent (rgb(… / 0.1–0.2)), which made toasts see-through, so we
+   composite the tint over the opaque theme surface: an opaque `background-color` base + the tint as
+   a solid `background-image` gradient layered on top → fully opaque, still tinted, still themed. */
 .cui-toast.cui-toast--success {
-  background-color: var(--click-alert-color-background-success);
+  background-color: var(--click-global-color-background-default);
+  background-image: linear-gradient(
+    var(--click-alert-color-background-success),
+    var(--click-alert-color-background-success)
+  );
 }
 .cui-toast.cui-toast--danger {
-  background-color: var(--click-alert-color-background-danger);
+  background-color: var(--click-global-color-background-default);
+  background-image: linear-gradient(
+    var(--click-alert-color-background-danger),
+    var(--click-alert-color-background-danger)
+  );
 }
 .cui-toast.cui-toast--warning {
-  background-color: var(--click-alert-color-background-warning);
+  background-color: var(--click-global-color-background-default);
+  background-image: linear-gradient(
+    var(--click-alert-color-background-warning),
+    var(--click-alert-color-background-warning)
+  );
 }
 .cui-toast.cui-toast--info {
-  background-color: var(--click-alert-color-background-info);
+  background-color: var(--click-global-color-background-default);
+  background-image: linear-gradient(
+    var(--click-alert-color-background-info),
+    var(--click-alert-color-background-info)
+  );
 }

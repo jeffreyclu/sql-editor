@@ -471,3 +471,34 @@ hardens / before relying on it) · **NOTE** (non-blocking, logged for traceabili
 - Toast colouring depends on Click UI's internal `cui-toast` class names + forwarded `className` —
   brittle to a Click UI internals change. Acceptable (token-based, no `!important`); revisit if a CU
   upgrade changes the markup.
+
+---
+
+## Review R13 — DL-024 nice-to-haves (results search/sort + saved-query rename) + toast opacity
+
+- **Date:** 2026-06-21
+- **Reviewed:** `ResultTable.tsx` (search + sort), `api/savedQueries.ts` (`updateSavedQuery`),
+  `useSavedQueries.ts` (`useUpdateSavedQuery`), `saveQueryPlugin.tsx` (inline rename) + tests; plus a
+  reviewer toast-opacity fix in `styles.css`. `npm test` → **218 passed** (29 files); `npm run
+  typecheck` → clean (both projects).
+- **Verdict:** ✅ **Approve.**
+
+### Solid (DL-024)
+- **Result search** — case-insensitive substring over the **rendered** cell text (same `formatCell`
+  as the grid), filters the already server-capped rows client-side; "No matching rows" empty state.
+- **Column sort** — tri-state asc → desc → none via the Click UI `Table`'s `onSort`/`sortDir`/
+  `isSortable` (DL-017, reuses the built-in caret); **stable** (original-index tiebreaker), numeric
+  compare when both cells parse as finite numbers else `localeCompare`; composes with search.
+- **Saved-query rename** — per-row pencil → inline `TextField` (Enter confirm / Esc cancel, disabled
+  on empty/unchanged) → `useUpdateSavedQuery` → `PUT /api/queries/:id` → `invalidateQueries`; toasts
+  success/error (backend PUT already existed). Pure components + local display state; no over-engineering.
+
+### Reviewer fix — toast opacity (user request)
+- The DL-034 toast tints used `--click-alert-color-background-*`, which are **semi-transparent**
+  (`rgb(… / 0.1–0.2)`) → see-through toasts. Fixed by **compositing**: opaque
+  `background-color: var(--click-global-color-background-default)` base + the tint as a solid
+  `background-image` gradient on top → **fully opaque, still tinted, still theme-aware**.
+
+### NOTE (non-blocking)
+- Sort runs on the **displayed (capped) rows**, not the full server result — correct for a
+  client-side feature on a 1000-row cap (DL-009); a truncated result sorts only what's shown.

@@ -752,3 +752,69 @@ panel built entirely from Click UI. No editor-core changes (DL-006); no backend 
 - The backend route, the `SqlGenerator` port/Gemini wiring, and the `GEMINI_API_KEY`/`.env` plumbing
   are a concurrent backend track (DL-031/DL-032) — not touched here. The FE only calls our own
   same-origin endpoint and assumes the documented `{ sql, explanation? }` / `{ error }` shapes.
+
+## Slice — results search/sort + saved-query rename (DL-024)
+
+The three remaining DL-024 "will add" nice-to-haves. All display-only result features stay client-side
+over the already server-capped rows (DL-009) — no refetch; rename is a TanStack mutation (DL-020).
+
+### What was built
+
+1. **Result-set search** — a Click UI `TextField` (`search` icon `startContent`, `clear` button) above
+   the results grid. Case-insensitive substring match across **all** cell values, using the same
+   `formatCell` rendering the grid shows (so it matches exactly what's on screen). Empty query = all
+   rows; when a non-empty query matches nothing it shows a **"No matching rows."** `Text` empty state
+   (the `Table` is swapped out). Local component state — it never feeds server state.
+2. **Client-side column sort** — headers are marked `isSortable`; the `Table`'s public `onSort`
+   callback drives a tri-state cycle **asc → desc → none** per column (Click UI's own toggle only does
+   asc/desc, so the panel owns the "none"/original-order step; the built-in caret indicator is reused
+   via `sortDir`). Stable sort (decorate-with-index tiebreaker); numeric compare when **both** cells
+   parse as finite numbers, else `localeCompare`. **Composes with search** — filter first, then order.
+3. **Saved-query inline rename** — each row gets a `pencil` `IconButton` that swaps the `CardHorizontal`
+   for an inline form (`TextField` + `check` confirm / `cross` cancel; Enter confirms, Escape cancels).
+   Confirm is disabled for empty/unchanged names. On confirm it calls the new `useUpdateSavedQuery`
+   mutation → `PUT /api/queries/:id` with `{ name }`, which `invalidateQueries(SAVED_QUERIES_QUERY_KEY)`
+   so the list refreshes; `toast.success('Query renamed')` / `toast.error(...)` (DL-027).
+
+### Files changed
+
+- **`web/src/components/ResultTable.tsx`** — search `TextField` + sort state; `visibleRows` memo (filter
+  then stable sort); sortable headers + `onSort`; no-match empty state. Still pure + `memo`ed.
+- **`web/src/api/savedQueries.ts`** — added `updateSavedQuery(id, changes)` → `PUT /api/queries/:id`,
+  returns the updated `SavedQuery`, throws `ApiError` on non-ok (reuses the existing `readErrorMessage`).
+- **`web/src/hooks/useSavedQueries.ts`** — added `useUpdateSavedQuery` `useMutation`; invalidates the
+  saved-queries key on success (mirrors `useSaveQuery`/`useDeleteSavedQuery`).
+- **`web/src/plugins/saveQueryPlugin.tsx`** — extracted a `SavedQueryRow` component owning its own edit
+  state (hook-safety: each row's `useState`/mutations live in the row component, not in a `.map`).
+
+### Decisions / trade-offs
+
+- **Design-system-first sort (DL-017):** reused the `Table`'s built-in sortable headers + caret
+  indicator + `onSort` rather than custom header buttons; only the tri-state "none" step is owned here
+  (Click UI's own handler toggles asc/desc only). The click target is the header's inner content
+  wrapper, so tests click that, not the `<th>`.
+- **No `styles.css` additions** — search input, empty state, and the inline rename form are all pure
+  Click UI primitives (`Container`/`TextField`/`Icon`/`IconButton`/`Text`).
+- **Display-only state is local (not Context):** search text + sort direction never become server state
+  and don't need cross-component sharing, so `useState` in `ResultTable` is the minimal fit (DL-008).
+
+### Tests (DL-015)
+
+- `web/src/components/ResultTable.test.tsx` (new, 5) — search filters rows case-insensitively; no-match
+  empty state; clearing restores all rows; header-click cycles asc→desc→none with **numeric** compare;
+  search + sort compose.
+- `web/src/plugins/saveQueryPlugin.test.tsx` (+2) — rename calls `PUT /api/queries/1` with `{ name }`
+  and the invalidated list re-renders the new name; an empty name keeps confirm disabled and fires no PUT.
+- `web/src/api/savedQueries.test.ts` (new, 2) — `updateSavedQuery` PUTs the changes and returns the
+  record; throws `ApiError` on a non-ok response.
+
+### Verification
+
+- `npm test` → **218 passed** (29 files) — up from the 209 baseline (+9 new).
+- `npm run typecheck` → **0 errors** (both `tsconfig.json` and `web/tsconfig.json`).
+
+### Not verified
+
+- Not exercised live against a running backend/ClickHouse; the rename path is covered by tests mocking
+  `fetch` against the `PUT /api/queries/:id` contract. Sort/search are tested through the real Click UI
+  `Table` in jsdom (which renders both desktop + mobile cell layouts — tests read the desktop `tbody`).

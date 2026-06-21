@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import { CardHorizontal, Container, IconButton, Text, TextField } from '@clickhouse/click-ui';
 import type { EditorPlugin, PluginContext } from './types';
-import { useDeleteSavedQuery, useSaveQuery, useSavedQueries } from '../hooks/useSavedQueries';
+import {
+  useDeleteSavedQuery,
+  useSaveQuery,
+  useSavedQueries,
+  useUpdateSavedQuery,
+} from '../hooks/useSavedQueries';
+import type { SavedQuery } from '../api/types';
 import { useToast } from '../hooks/useToast';
 
 // The Saved queries plugin (DL-006 / DL-013): save the current editor script under a name, then
@@ -18,7 +24,6 @@ function SavedQueriesPanel({ ctx }: { ctx: PluginContext }) {
   const [name, setName] = useState('');
   const { data, isPending, isError } = useSavedQueries();
   const saveQuery = useSaveQuery();
-  const deleteQuery = useDeleteSavedQuery();
   const toast = useToast();
 
   const trimmedName = name.trim();
@@ -71,31 +76,114 @@ function SavedQueriesPanel({ ctx }: { ctx: PluginContext }) {
       ) : (
         <Container orientation="vertical" gap="sm" fillWidth>
           {data.map((query) => (
-            <Container key={query.id} orientation="horizontal" gap="xs" alignItems="center" fillWidth>
-              <Container grow="1" fillWidth>
-                <CardHorizontal
-                  size="sm"
-                  title={query.name}
-                  description={firstLine(query.sql)}
-                  onClick={() => ctx.setDoc(query.sql)}
-                />
-              </Container>
-              <IconButton
-                icon="trash"
-                type="ghost"
-                size="sm"
-                title={`Delete ${query.name}`}
-                onClick={() =>
-                  deleteQuery.mutate(query.id, {
-                    onSuccess: () => toast.success('Query deleted'),
-                    onError: () => toast.error('Could not delete the query'),
-                  })
-                }
-              />
-            </Container>
+            <SavedQueryRow key={query.id} query={query} ctx={ctx} />
           ))}
         </Container>
       )}
+    </Container>
+  );
+}
+
+// One saved-query row: normally a CardHorizontal (click to load); the pencil swaps it for an inline
+// rename form (TextField + confirm/cancel). Rename is a TanStack mutation (DL-020) that invalidates
+// the list on success; empty names are rejected and toasts confirm the outcome (DL-027).
+function SavedQueryRow({ query, ctx }: { query: SavedQuery; ctx: PluginContext }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(query.name);
+  const updateQuery = useUpdateSavedQuery();
+  const deleteQuery = useDeleteSavedQuery();
+  const toast = useToast();
+
+  const trimmed = draft.trim();
+  const canConfirm = trimmed.length > 0 && trimmed !== query.name && !updateQuery.isPending;
+
+  const startEdit = () => {
+    setDraft(query.name);
+    setEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setEditing(false);
+    setDraft(query.name);
+  };
+
+  const confirmEdit = () => {
+    if (!canConfirm) return;
+    updateQuery.mutate(
+      { id: query.id, changes: { name: trimmed } },
+      {
+        onSuccess: () => {
+          setEditing(false);
+          toast.success('Query renamed');
+        },
+        onError: () => toast.error('Could not rename the query'),
+      },
+    );
+  };
+
+  if (editing) {
+    return (
+      <Container orientation="horizontal" gap="xs" alignItems="center" fillWidth>
+        <Container grow="1" fillWidth>
+          <TextField
+            value={draft}
+            onChange={(value) => setDraft(value)}
+            placeholder="Rename query"
+            onKeyUp={(e) => {
+              if (e.key === 'Enter') confirmEdit();
+              if (e.key === 'Escape') cancelEdit();
+            }}
+          />
+        </Container>
+        <IconButton
+          icon="check"
+          type="ghost"
+          size="sm"
+          title="Save name"
+          disabled={!canConfirm}
+          onClick={confirmEdit}
+        />
+        <IconButton
+          icon="cross"
+          type="ghost"
+          size="sm"
+          title="Cancel rename"
+          disabled={updateQuery.isPending}
+          onClick={cancelEdit}
+        />
+      </Container>
+    );
+  }
+
+  return (
+    <Container orientation="horizontal" gap="xs" alignItems="center" fillWidth>
+      <Container grow="1" fillWidth>
+        <CardHorizontal
+          size="sm"
+          title={query.name}
+          description={firstLine(query.sql)}
+          onClick={() => ctx.setDoc(query.sql)}
+        />
+      </Container>
+      <IconButton
+        icon="pencil"
+        type="ghost"
+        size="sm"
+        title={`Rename ${query.name}`}
+        onClick={startEdit}
+      />
+      <IconButton
+        icon="trash"
+        type="ghost"
+        size="sm"
+        title={`Delete ${query.name}`}
+        onClick={() =>
+          deleteQuery.mutate(query.id, {
+            onSuccess: () => toast.success('Query deleted'),
+            onError: () => toast.error('Could not delete the query'),
+          })
+        }
+      />
     </Container>
   );
 }

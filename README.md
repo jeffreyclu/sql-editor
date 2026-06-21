@@ -56,13 +56,35 @@ npm run test:web
   in order; results render per statement (a table for data, a "command executed" note for
   DDL/DML, an inline error for a failure). Execution **stops at the first error** and says so.
 - **Async UX** — explicit idle / running / error states, run cancellation, large results capped
-  server-side.
+  server-side, readable ClickHouse errors, and color-coded toasts for actions.
 - **Dark / light theme** — toggled in the toolbar; persisted locally.
 - **Last script persistence** — your editor content is restored across reloads.
-- **Persistence API** — every run is logged to **history**, and queries can be **saved** for
-  reuse, via `/api/history` and `/api/queries` (SQLite). *(Frontend UI for these is planned.)*
+- **Editor plugins** (left/right rails):
+  - **Examples** — a curated set of queries to load and run.
+  - **History** — every run is auto-logged (SQLite); click to reload.
+  - **Saved queries** — name and save queries for reuse, with inline rename and delete.
+  - **Schema explorer** — browse databases → tables → columns; also powers editor autocomplete.
+  - **Import** — upload a CSV/TSV/JSON file into a table (optionally creating it).
+  - **AI assistant** — describe a query in plain language; it generates SQL into the editor for
+    you to review and run (never auto-run). Requires `GEMINI_API_KEY` — see below.
+- **Results** — per-statement tables with **search**, **client-side column sort**, and **CSV export**.
 
 See `src/requests.http` for example API calls.
+
+## AI assistant (optional)
+
+The AI assistant (NL→SQL) calls Google Gemini server-side (the key never reaches the browser).
+It's optional — the app runs fine without it (the panel shows a "not configured" message).
+
+To enable it, get a free key from [Google AI Studio](https://aistudio.google.com/apikey), then:
+
+```bash
+cp .env.example .env      # .env is gitignored
+# add your key:  GEMINI_API_KEY=...
+```
+
+`npm run dev` / `npm start` load `.env` (and `.env.local`) automatically. The endpoint is
+`POST /api/ai/sql`; with no key set it returns `503 { error: "AI assistant not configured" }`.
 
 ## Architecture
 
