@@ -112,7 +112,7 @@ needs the backend's `{ statements }` contract and is the next slice.
 discriminated union + `AbortController`, DL-004), `state/QueryProvider.tsx` + `useQuerySelector`
 (its own store per DL-010), and pure results components — `ResultsPanel`,
 `StatementResultCard`, `ResultTable`, `ErrorBanner`, `StatusBar` — on **verified** Click UI
-primitives (Table/Alert). Plus `RunButton` + a Cmd/Ctrl+Enter run keymap (CM). Consumes the
+primitives (Table/Alert). Plus `RunButton`. Consumes the
 backend `POST /query` `{ statements }` contract (built in backend Slice 1). Tests: `useRunQuery`
 state machine + one critical UI path (type → Run → results).
 
@@ -128,7 +128,7 @@ state machine + one critical UI path (type → Run → results).
 
 ### What was built
 
-Type a script → Run (button or Cmd/Ctrl+Enter) → see per-statement results, with explicit
+Type a script → Run (button) → see per-statement results, with explicit
 loading/empty/error states and cancellation.
 
 | File | Responsibility |
@@ -143,7 +143,7 @@ loading/empty/error states and cancellation.
 | `web/src/components/StatementResultCard.tsx` | Pure per-statement panel: header (index, SQL, rows/timing) over table / "command executed" note / error banner. |
 | `web/src/components/ResultsPanel.tsx` | Pure pane rendering **all four** async states explicitly; flags stop-on-first-error (DL-004). |
 | `web/src/components/StatusBar.tsx` | Pure run-summary line (Ready / Running… / N statements · ok/failed). |
-| `web/src/App.tsx` | Connected wrappers `RunControls` / `EditorPane` / `ResultsRegion`, each subscribing to its own slice; Cmd/Ctrl+Enter keymap reads the live doc from the editor store. |
+| `web/src/App.tsx` | Connected wrappers `RunControls` / `EditorPane` / `ResultsRegion`, each subscribing to its own slice. |
 | `web/src/main.tsx` | `QueryProvider` added to the tree (Click UI → Editor → Query). |
 | `web/src/styles.css` | Results / status-bar / statement-card / column-header styles. |
 | `web/src/hooks/useRunQuery.test.tsx` | State machine: idle→running→done, transport error, cancel/abort, supersede-in-flight. |
@@ -167,9 +167,6 @@ loading/empty/error states and cancellation.
 - **Connected wrappers live in `App`, not `components/`** — presentational components stay pure;
   each wrapper isolates its own subscription so typing never re-renders results and results
   changes never re-render the editor (DL-010/DL-012). `App` reads no state, so it never re-renders.
-- **`keymap` imported from `@uiw/react-codemirror`** (re-exported) — avoids a direct
-  `@codemirror/view` dependency. The keybinding reads the live doc from the store, keeping the CM
-  extension stable (no reconfigure per keystroke).
 - **Cell formatting** in `ResultTable`: `null`/`undefined` → `∅`, objects → JSON, else `String`.
   Virtualization still deferred (DL-009).
 
@@ -220,9 +217,7 @@ DL-014) as a follow-on. Tests: a provider/store + one plugin interaction path.
 - `EditorProvider`: `useState` + memoized context value; thin `useEditor()` = `useContext` wrapper.
 - `QueryProvider` / `useRunQuery`: the `idle│running│done│error` machine now runs on `useState` +
   `AbortController`; thin `useQuery()` wrapper. `apiClient` still injectable (DIP).
-- `App`: connected wrappers consume `useEditor()` / `useQuery()`; the Cmd/Ctrl+Enter keybinding
-  reads the live doc via a `ref`, so the CodeMirror extension stays stable (no per-keystroke
-  reconfigure).
+- `App`: connected wrappers consume `useEditor()` / `useQuery()`.
 - **Re-render isolation now comes from one-provider-per-concern (DL-010), not selectors:**
   `ResultsRegion` consumes only `QueryContext`, so typing never re-renders results; the expensive
   `EditorSurface` is `React.memo` with stable props, so query-state changes don't re-render it.
@@ -450,13 +445,43 @@ React Context, no selector lib, DL-019):
 
 ---
 
-## Note — Cmd/Ctrl+Enter removed
+## Note — running is button-only
 
 - **Date:** 2026-06-20
-- Removed the editor's Cmd/Ctrl+Enter run keybinding — it's redundant with the Run button and the
-  CodeMirror keymap proved unreliable across setups. Running is button-only now. `EditorSurface` no
-  longer takes a CodeMirror `extensions` prop (nothing contributed one — DL-008); re-add that seam
-  when a plugin actually needs CM extensions.
+- Running is button-only. `EditorSurface` takes no CodeMirror `extensions` prop (nothing contributed
+  one — DL-008); re-add that seam when a plugin actually needs CM extensions.
+
+---
+
+## Slice 3b — History plugin (DL-006 / DL-013 / DL-020)
+
+- **Date:** 2026-06-20
+- **Status:** Complete, awaiting review. Tests green (11 across 6 files); typecheck clean; build OK.
+- **Plan phase:** 3/6 — persistence surfaced as an editor plugin. Saved queries (3c) is next.
+
+### What was built
+
+| File | Responsibility |
+|---|---|
+| `web/src/api/types.ts` | `HistoryEntry` — mirrors the backend type (DL-013). |
+| `web/src/api/history.ts` | `fetchHistory` (`GET /api/history`) + `HISTORY_QUERY_KEY`. |
+| `web/src/hooks/useHistory.ts` | TanStack `useQuery` over the history (DL-020). |
+| `web/src/plugins/historyPlugin.tsx` | "History" panel: lists runs (timestamp + status `Badge` + first-line SQL); selecting one loads its SQL into the editor. |
+| `web/src/hooks/useRunQuery.ts` | The run mutation's `onSettled` invalidates `HISTORY_QUERY_KEY`, so history refreshes after each run (DL-020). |
+| `main.tsx` / `styles.css` | Registers `historyPlugin` next to `examplesPlugin`; `.history-item__sql` single-line preview. |
+
+### Notes
+
+- **Hooks safety:** `renderPanel` returns a `<HistoryList>` element (not a hook call), so `PluginPanel`
+  doesn't call hooks conditionally when the active plugin changes.
+- Loading / error / empty states all rendered. Selecting a run loads its SQL (panel stays open);
+  re-run is a trivial follow-on (`ctx.run` is already available).
+- **Test:** `historyPlugin` renders from a mocked `fetch` and loading a run calls `setDoc`.
+
+### Next
+
+- **Slice 3c — Saved queries:** `useQuery` list + save/delete `useMutation` with `invalidateQueries`
+  (DL-013/DL-020); a `saveQueryPlugin` (save the current script + a named list).
 - New `EditorProvider` test asserts an actions-only consumer renders **once** across document edits
   (regression guard for exactly this issue). This relies on the children-as-props bail-out plus the
   context split.

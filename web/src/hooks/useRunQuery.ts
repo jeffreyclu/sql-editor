@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useRef } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { RunResponse } from '../api/types';
 import { ApiError, apiClient as defaultApiClient, type ApiClient } from '../api/apiClient';
+import { HISTORY_QUERY_KEY } from '../api/history';
 
 // Running a query is imperative, uncached server state, so it's a TanStack Query **mutation**
 // (DL-020): `useMutation` already models idle/pending/success/error. Results are never cached
@@ -21,6 +22,7 @@ export interface RunQuery {
 }
 
 export function useRunQuery(apiClient: ApiClient = defaultApiClient): RunQuery {
+  const queryClient = useQueryClient();
   const controllerRef = useRef<AbortController | null>(null);
 
   const { mutate, reset, status, data, error } = useMutation<RunResponse, unknown, string>({
@@ -29,6 +31,10 @@ export function useRunQuery(apiClient: ApiClient = defaultApiClient): RunQuery {
       const controller = new AbortController();
       controllerRef.current = controller;
       return apiClient.runQuery(query, controller.signal);
+    },
+    // Every run is auto-logged to history server-side, so refresh the history query (DL-020).
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: HISTORY_QUERY_KEY });
     },
   });
 

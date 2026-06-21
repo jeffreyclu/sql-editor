@@ -36,3 +36,17 @@ export interface RunResponse {
 export interface RunRequest {
   query: string;
 }
+
+/** One auto-logged run in the query history (DL-013). Mirrors the backend `HistoryEntry`. */
+export interface HistoryEntry {
+  id: string;
+  sql: string;
+  /** ISO-8601 timestamp of when the run was recorded. */
+  executedAt: string;
+  status: StatementStatus;
+  /** Number of statements the script was split into. */
+  statementCount: number;
+  elapsedMs?: number;
+  /** Message of the error that ended the run, if any. */
+  error?: string;
+}

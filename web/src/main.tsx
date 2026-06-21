@@ -6,6 +6,7 @@ import { EditorProvider } from './state/EditorProvider';
 import { QueryProvider } from './state/QueryProvider';
 import { PluginProvider } from './plugins/PluginProvider';
 import { examplesPlugin } from './plugins/examplesPlugin';
+import { historyPlugin } from './plugins/historyPlugin';
 import { App } from './App';
 import './styles.css';
 
@@ -19,7 +20,7 @@ const queryClient = new QueryClient({
 });
 
 // Registered editor plugins (DL-006). History / saved queries slot in here in later slices.
-const plugins = [examplesPlugin];
+const plugins = [examplesPlugin, historyPlugin];
 
 // Provider tree (outermost → innermost): theme + Click UI design system (DL-001/DL-017) →
 // TanStack Query (server state, DL-020) → editor document (UI state, DL-010/DL-019) → query run

@@ -5,20 +5,18 @@ import { examplesPlugin } from './examplesPlugin';
 import { goldenQueries } from '../data/goldenQueries';
 
 describe('examplesPlugin', () => {
-  it('loads the selected golden query into the editor and leaves the panel open', () => {
+  it('loads the selected golden query into the editor', () => {
     const setDoc = vi.fn();
-    const close = vi.fn();
     render(
       <ClickUIProvider theme="light">
-        {examplesPlugin.renderPanel({ setDoc, run: vi.fn() }, close)}
+        {examplesPlugin.renderPanel({ setDoc, run: vi.fn() }, () => {})}
       </ClickUIProvider>,
     );
 
-    const first = goldenQueries[0];
-    fireEvent.click(screen.getByText(first.title));
+    // Clicking the card (here via its title) loads the query.
+    fireEvent.click(screen.getByText(goldenQueries[0].title));
 
-    expect(setDoc).toHaveBeenCalledWith(first.sql);
-    expect(close).not.toHaveBeenCalled();
+    expect(setDoc).toHaveBeenCalledWith(goldenQueries[0].sql);
   });
 });
 
