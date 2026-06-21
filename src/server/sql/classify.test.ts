@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { classifyStatement, leadingKeyword } from './classify';
+import { splitStatements } from './splitStatements';
+import { goldenQueries } from '../../../web/src/data/goldenQueries';
 
 describe('classifyStatement', () => {
   it.each([
@@ -64,5 +66,18 @@ describe('leadingKeyword', () => {
 
   it('returns empty string when there is no keyword', () => {
     expect(leadingKeyword('   ;;;  ')).toBe('');
+  });
+});
+
+describe('classify over the golden dataset (DL-016)', () => {
+  it.each(goldenQueries)('classifies each statement in "$id"', (golden) => {
+    const kinds = splitStatements(golden.sql).map(classifyStatement);
+
+    if (golden.category === 'multi-statement') {
+      expect(kinds).toEqual(['command', 'command', 'query']); // CREATE; INSERT; SELECT
+    } else {
+      expect(kinds).toHaveLength(1);
+      expect(kinds[0]).toBe(golden.category === 'ddl' ? 'command' : 'query');
+    }
   });
 });

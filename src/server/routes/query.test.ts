@@ -5,6 +5,7 @@ import { createApp } from '../app';
 import { createDatabase } from '../db/db';
 import { createHistoryRepository } from '../db/historyRepository';
 import type { ClickHouseExecutor, QueryResult } from '../clickhouse';
+import { goldenQueries } from '../../../web/src/data/goldenQueries';
 
 /** Build a `QueryResult` mock mirroring ClickHouse's JSON response shape. */
 function jsonResult(
@@ -161,6 +162,21 @@ describe('POST /query', () => {
     expect(res.status).toBe(500);
     expect(res.body.error).toBe('cannot connect to ClickHouse');
   });
+
+  it.each(goldenQueries)(
+    'runs golden example "$id" → one result per statement (DL-016)',
+    async (golden) => {
+      const query = vi.fn(async (_sql: string) => jsonResult([], []));
+      const command = vi.fn(async (_sql: string) => ({ query_id: 'ok' }));
+      const app = createApp({ createExecutor: () => makeExecutor({ query, command }) });
+
+      const res = await request(app).post('/query').send({ query: golden.sql });
+
+      expect(res.status).toBe(200);
+      expect(res.body.statements).toHaveLength(golden.category === 'multi-statement' ? 3 : 1);
+      expect(res.body.statements.every((s: { status: string }) => s.status === 'success')).toBe(true);
+    },
+  );
 
   describe('history auto-logging (DL-013)', () => {
     it('records a successful run with statement count and total elapsed', async () => {

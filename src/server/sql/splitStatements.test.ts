@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { splitStatements } from './splitStatements';
+import { goldenQueries } from '../../../web/src/data/goldenQueries';
 
 describe('splitStatements', () => {
   it('returns an empty array for blank input', () => {
@@ -75,5 +76,19 @@ describe('splitStatements', () => {
       "INSERT INTO demo VALUES (1, 'one'), (2, 'two')",
       'SELECT * FROM demo ORDER BY id',
     ]);
+  });
+});
+
+describe('splitStatements over the golden dataset (DL-016)', () => {
+  it.each(goldenQueries)('splits "$id" into clean, non-empty statements', (golden) => {
+    const statements = splitStatements(golden.sql);
+
+    expect(statements.length).toBeGreaterThan(0);
+    for (const statement of statements) {
+      expect(statement).toBe(statement.trim());
+      expect(statement).not.toBe('');
+      expect(statement.endsWith(';')).toBe(false);
+    }
+    expect(statements).toHaveLength(golden.category === 'multi-statement' ? 3 : 1);
   });
 });

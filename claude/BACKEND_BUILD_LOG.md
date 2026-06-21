@@ -259,3 +259,24 @@ raw formats ("expected Readable Stream with disabled object mode"). Fixed to
 
 `fileImportPlugin` should `POST /import` as `multipart/form-data` with `file` + `table`
 (+ optional `format`); success → `{ table, format, rowsWritten?, queryId }`, errors → `{ error }`.
+
+---
+
+## Follow-up — golden dataset wired into backend tests (DL-016)
+
+- **Date:** 2026-06-20
+- **Status:** Complete. Resolves the DL-016 deviation noted in Slice 1 and the frontend review
+  (R4 NOTE: "backend tests still use inline fixtures"). Tests **94 passed**.
+
+`web/src/data/goldenQueries.ts` (pure, framework-agnostic data) is now imported by the backend
+tests, making it the single source of truth for both the UI Examples picker and the backend
+fixtures as DL-016 intends:
+- `splitStatements.test.ts` — splits every golden query into clean, non-empty statements
+  (multi-statement → 3, others → 1).
+- `classify.test.ts` — classifies each golden statement (multi-statement → CREATE/INSERT/SELECT =
+  command/command/query; others → query).
+- `query.test.ts` — runs each golden example through `POST /query` (mocked executor) and asserts
+  one result per statement.
+
+The adversarial lexical edge-case tests (`;`/`''`/comments/backticks) are kept inline — they
+aren't representable as UI examples, so they stay alongside the golden-driven cases.
