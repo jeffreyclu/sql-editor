@@ -37,6 +37,18 @@ export interface RunRequest {
   query: string;
 }
 
+/** An explicit, named query the user saved for re-use (DL-013). Mirrors the backend `SavedQuery`. */
+export interface SavedQuery {
+  id: string;
+  name: string;
+  sql: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Fields needed to create a saved query; the rest are assigned by the backend. */
+export type NewSavedQuery = Pick<SavedQuery, 'name' | 'sql'>;
+
 /** One auto-logged run in the query history (DL-013). Mirrors the backend `HistoryEntry`. */
 export interface HistoryEntry {
   id: string;

@@ -8,6 +8,7 @@ import { goldenQueries } from '../data/goldenQueries';
 export const examplesPlugin: EditorPlugin = {
   id: 'examples',
   toolbarLabel: 'Examples',
+  icon: 'cards',
   title: 'Example queries',
   renderPanel: (ctx) => (
     <Container orientation="vertical" gap="sm" fillWidth>

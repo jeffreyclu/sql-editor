@@ -15,11 +15,11 @@ export interface PluginPanelProps {
 
 export function PluginPanel({ pluginId, onClose }: PluginPanelProps) {
   const plugins = usePlugins();
-  const { setDoc } = useEditorActions();
+  const { setDoc, getDoc } = useEditorActions();
   const { run } = useQuery();
 
   const plugin = plugins.find((candidate) => candidate.id === pluginId);
-  const ctx = useMemo<PluginContext>(() => ({ setDoc, run }), [setDoc, run]);
+  const ctx = useMemo<PluginContext>(() => ({ setDoc, getDoc, run }), [setDoc, getDoc, run]);
 
   if (!plugin) return null;
 

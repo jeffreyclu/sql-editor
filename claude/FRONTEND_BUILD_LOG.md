@@ -485,3 +485,58 @@ React Context, no selector lib, DL-019):
 - New `EditorProvider` test asserts an actions-only consumer renders **once** across document edits
   (regression guard for exactly this issue). This relies on the children-as-props bail-out plus the
   context split.
+
+---
+
+## Slice 3c — Saved queries plugin (DL-006 / DL-013 / DL-020)
+
+- **Date:** 2026-06-20
+- **Status:** Complete, awaiting review. Tests green (13 across 7 files); typecheck clean; build OK.
+- **Plan phase:** 3/6 — third persistence plugin; completes the examples/history/saved trio.
+
+### What was built
+
+| File | Responsibility |
+|---|---|
+| `web/src/api/types.ts` | `SavedQuery` + `NewSavedQuery` mirror the backend (DL-013). |
+| `web/src/api/savedQueries.ts` | fetch/create/delete + `SAVED_QUERIES_QUERY_KEY` (`/api/queries`). |
+| `web/src/hooks/useSavedQueries.ts` | `useSavedQueries` (useQuery) + save/delete mutations that invalidate the list (DL-020). |
+| `web/src/plugins/saveQueryPlugin.tsx` | "Saved" panel: TextField + "Save current query" (saves `ctx.getDoc()`), CardHorizontal list (click to load) + Delete. |
+| `web/src/plugins/types.ts` + `containers/PluginPanel.tsx` | `PluginContext` gains `getDoc()`. |
+| `main.tsx` | Registers `saveQueryPlugin` (examples + history + saved). |
+
+### Notes
+
+- Save disabled until a name + non-empty editor; name clears on success. Mutations invalidate the
+  saved-queries query so the list stays in sync (DL-020).
+- Tests: list + load (click a card); save (TextField -> POST `{ name, sql }`).
+
+### Next
+
+- Plugin trio complete. Remaining: schema autocomplete (DL-014) and file import (`fileImportPlugin`)
+  via the same seam.
+
+---
+
+## DL-026 — icon activity-rail + editor/save icon buttons
+
+- **Date:** 2026-06-20
+- **Status:** Complete, awaiting review. Tests green (13 across 7 files); typecheck clean; build OK.
+
+### What changed
+
+- `EditorPlugin` gains `icon` (IconName) + `placement?: 'left'|'right'` (default left).
+- Plugin toggles moved from toolbar text buttons to a left **icon activity-rail** (`PluginRail`):
+  icon-only Click UI `Button` + `Tooltip` + `aria-label`(=toolbarLabel)/`aria-pressed`/`aria-expanded`.
+  Grouped by placement; the right rail renders only once a right-placement plugin exists (seam).
+  Icons: examples=`cards`, history=`history`, saved=`star`.
+- **Why Button, not IconButton:** Click UI `IconButton` hardcodes `aria-label` to the icon name, so
+  an icon-only `Button` (`iconLeft`) is used to keep `aria-label` = `toolbarLabel` (DL-026 a11y).
+- **Editor pane** gains a copy (`copy`) + clear (`cross`) icon-button toolbar above CodeMirror.
+- **Saved queries:** Save is now an inline `disk` icon button beside the name field; Delete is a
+  `trash` icon button.
+
+### Verification
+
+- `npm run test:web` -> 13 passed (7 files); `tsc` clean; `npm run build` OK. `PluginBar` test
+  became `PluginRail` (clicks the icon toggle by its aria-label).

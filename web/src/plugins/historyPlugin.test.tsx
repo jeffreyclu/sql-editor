@@ -30,7 +30,7 @@ function renderHistory(setDoc: (doc: string) => void) {
   return render(
     <ClickUIProvider theme="light">
       <QueryClientProvider client={queryClient}>
-        {historyPlugin.renderPanel({ setDoc, run: vi.fn() }, () => {})}
+        {historyPlugin.renderPanel({ setDoc, getDoc: () => '', run: vi.fn() }, () => {})}
       </QueryClientProvider>
     </ClickUIProvider>,
   );

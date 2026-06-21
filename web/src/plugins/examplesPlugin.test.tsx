@@ -9,7 +9,7 @@ describe('examplesPlugin', () => {
     const setDoc = vi.fn();
     render(
       <ClickUIProvider theme="light">
-        {examplesPlugin.renderPanel({ setDoc, run: vi.fn() }, () => {})}
+        {examplesPlugin.renderPanel({ setDoc, getDoc: () => '', run: vi.fn() }, () => {})}
       </ClickUIProvider>,
     );
 

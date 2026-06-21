@@ -1,5 +1,5 @@
 import { memo, useMemo } from 'react';
-import CodeMirror from '@uiw/react-codemirror';
+import CodeMirror, { EditorView } from '@uiw/react-codemirror';
 import { sql } from '@codemirror/lang-sql';
 import type { Extension } from '@codemirror/state';
 
@@ -19,10 +19,12 @@ function EditorSurfaceComponent({
   height = '100%',
   theme = 'light',
 }: EditorSurfaceProps) {
-  const extensions = useMemo<Extension[]>(() => [sql()], []);
+  // `lineWrapping` so long SQL lines wrap instead of overflowing horizontally.
+  const extensions = useMemo<Extension[]>(() => [sql(), EditorView.lineWrapping], []);
 
   return (
     <CodeMirror
+      className="editor-surface"
       value={value}
       height={height}
       theme={theme}

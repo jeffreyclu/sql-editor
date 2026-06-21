@@ -8,6 +8,7 @@ import { useHistory } from '../hooks/useHistory';
 export const historyPlugin: EditorPlugin = {
   id: 'history',
   toolbarLabel: 'History',
+  icon: 'history',
   title: 'Run history',
   // Wrap the hook in a component so it isn't called conditionally from PluginPanel.
   renderPanel: (ctx) => <HistoryList ctx={ctx} />,

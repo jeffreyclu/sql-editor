@@ -4,11 +4,12 @@ import { EditorPane } from './containers/EditorPane';
 import { RunControls } from './containers/RunControls';
 import { ResultsRegion } from './containers/ResultsRegion';
 import { ThemeSwitcher } from './containers/ThemeSwitcher';
-import { PluginBar } from './containers/PluginBar';
+import { PluginRail } from './containers/PluginRail';
 import { PluginPanel } from './containers/PluginPanel';
 
-// Composition root: lays out the app shell and wires containers into it. The only state here is
-// which plugin panel (if any) is open — an infrequent toggle, kept simple as local state.
+// Composition root. Plugin toggles live in a left icon activity-rail (DL-026); clicking one opens
+// its panel beside the editor. The `placement` seam means a right rail/panel can be added later for
+// inspection plugins without reworking this. Only state here is which plugin panel is open.
 export function App() {
   const [openPluginId, setOpenPluginId] = useState<string | null>(null);
   const togglePlugin = useCallback(
@@ -22,13 +23,13 @@ export function App() {
       <Toolbar
         actions={
           <>
-            <PluginBar openId={openPluginId} onToggle={togglePlugin} />
             <ThemeSwitcher />
             <RunControls />
           </>
         }
       />
       <div className="app-main">
+        <PluginRail placement="left" openId={openPluginId} onToggle={togglePlugin} />
         {openPluginId ? <PluginPanel pluginId={openPluginId} onClose={closePlugin} /> : null}
         <main className="app-body">
           <section className="pane pane--editor" aria-label="SQL editor">
