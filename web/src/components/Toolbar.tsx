@@ -11,8 +11,7 @@ function ToolbarComponent({ actions }: ToolbarProps) {
   return (
     <header className="toolbar">
       <div className="toolbar__brand">
-        <span className="toolbar__logo" aria-hidden="true" />
-        <span className="toolbar__title">ClickHouse SQL Editor</span>
+        <span className="toolbar__title">SQL Editor</span>
       </div>
       {actions ? <div className="toolbar__actions">{actions}</div> : null}
     </header>

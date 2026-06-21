@@ -48,16 +48,6 @@ body {
   color: var(--click-global-color-text-default);
 }
 
-/* ClickHouse brand mark — a fixed brand color, intentionally not themed. */
-.toolbar__logo {
-  display: inline-block;
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
-  background: #faff00;
-  border: 1px solid #1f1f1f;
-}
-
 .toolbar__actions {
   display: flex;
   align-items: center;
