@@ -885,3 +885,30 @@ ADR-lite: **Context → Decision → Consequences → Alternatives**.
 - **Alternatives considered:** a fully neutral "show the raw error, just scrollable" (rejected — the
   echoed SQL is pure noise next to the card's SQL); patching Click UI's Toast directly (rejected —
   styling via tokens + class is non-invasive and upgrade-safe).
+
+---
+
+## DL-035 — Refresh the cached schema after schema-changing DDL runs
+
+- **Date:** 2026-06-21
+- **Status:** Accepted (extends DL-020 caching + DL-025 schema; complements DL-033's import invalidation)
+- **Decided by:** User (product owner) — "the schema panel needs to refresh when a table is dropped
+  or created, or a column is edited."
+- **Context:** The schema (`useSchema`) is cached with a long `staleTime` and feeds both the explorer
+  panel and CodeMirror autocomplete. Running DDL in the editor (`CREATE`/`DROP`/`ALTER` …) changed
+  the database but left the cached tree stale until the TTL elapsed. Import already invalidated the
+  schema on success (DL-033); editor runs did not.
+- **Decision:** `useRunQuery` invalidates `SCHEMA_QUERY_KEY` in `onSuccess` when the run included a
+  schema-changing statement, detected by a small pure helper `affectsSchema(statements)` in
+  `api/schema.ts` (leading keyword in `{CREATE, DROP, ALTER, RENAME, ATTACH, DETACH, EXCHANGE}`;
+  `TRUNCATE`/`INSERT`/`SET` excluded — they don't alter the tree). The keyword scan mirrors the
+  backend `classify.leadingKeyword` (skips whitespace/comments) but lives on the frontend because the
+  backend module isn't importable across the build boundary and this is a cache-invalidation concern,
+  not execution. Autocomplete keeps `useSchema` observed, so the invalidation refetches immediately.
+- **Consequences:** the explorer + autocomplete reflect DDL right after a run. A failed DDL still
+  triggers a (harmless) refetch; non-DDL runs don't refetch the schema. Covered by `affectsSchema`
+  unit tests + a `useRunQuery` test (DDL invalidates, SELECT doesn't).
+- **Alternatives considered:** invalidate on any `command`-kind statement (rejected — `INSERT`/`SET`
+  are commands too, so every data run would refetch the schema); a finer backend classification +
+  contract flag (more plumbing for no extra correctness); a manual "refresh" button (doesn't satisfy
+  "it should just refresh").

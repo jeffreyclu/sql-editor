@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { RunResponse } from '../api/types';
 import { ApiError, apiClient as defaultApiClient, type ApiClient } from '../api/apiClient';
 import { HISTORY_QUERY_KEY } from '../api/history';
+import { SCHEMA_QUERY_KEY, affectsSchema } from '../api/schema';
 
 // Running a query is imperative, uncached server state, so it's a TanStack Query **mutation**
 // (DL-020): `useMutation` already models idle/pending/success/error. Results are never cached
@@ -31,6 +32,14 @@ export function useRunQuery(apiClient: ApiClient = defaultApiClient): RunQuery {
       const controller = new AbortController();
       controllerRef.current = controller;
       return apiClient.runQuery(query, controller.signal);
+    },
+    // A DDL run (create/drop/alter table or column, …) changes the schema tree, so refresh the
+    // cached schema feeding the explorer + autocomplete (DL-035). Checked on success since the
+    // response lists which statements actually executed.
+    onSuccess: (response) => {
+      if (affectsSchema(response.statements)) {
+        void queryClient.invalidateQueries({ queryKey: SCHEMA_QUERY_KEY });
+      }
     },
     // Every run is auto-logged to history server-side, so refresh the history query (DL-020).
     onSettled: () => {

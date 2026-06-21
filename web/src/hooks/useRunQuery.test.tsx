@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { useRunQuery } from './useRunQuery';
 import type { ApiClient } from '../api/apiClient';
 import type { RunResponse } from '../api/types';
+import { SCHEMA_QUERY_KEY } from '../api/schema';
 
 const response: RunResponse = {
   statements: [
@@ -85,6 +86,36 @@ describe('useRunQuery', () => {
       result.current.cancel();
     });
     await waitFor(() => expect(result.current.runState.status).toBe('idle'));
+  });
+
+  it('refreshes the schema after a DDL run, but not after a plain SELECT', async () => {
+    const ddl: RunResponse = {
+      statements: [{ statement: 'DROP TABLE t', kind: 'command', status: 'success' }],
+    };
+
+    // DDL run → schema query invalidated.
+    const ddlClient: ApiClient = { runQuery: vi.fn(() => Promise.resolve(ddl)) };
+    const ddlQc = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const ddlSpy = vi.spyOn(ddlQc, 'invalidateQueries');
+    const ddlWrap = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={ddlQc}>{children}</QueryClientProvider>
+    );
+    const { result: ddlResult } = renderHook(() => useRunQuery(ddlClient), { wrapper: ddlWrap });
+    act(() => ddlResult.current.run('DROP TABLE t'));
+    await waitFor(() => expect(ddlResult.current.runState.status).toBe('done'));
+    expect(ddlSpy).toHaveBeenCalledWith({ queryKey: SCHEMA_QUERY_KEY });
+
+    // SELECT run → schema query NOT invalidated.
+    const selClient: ApiClient = { runQuery: vi.fn(() => Promise.resolve(response)) };
+    const selQc = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const selSpy = vi.spyOn(selQc, 'invalidateQueries');
+    const selWrap = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={selQc}>{children}</QueryClientProvider>
+    );
+    const { result: selResult } = renderHook(() => useRunQuery(selClient), { wrapper: selWrap });
+    act(() => selResult.current.run('SELECT 1'));
+    await waitFor(() => expect(selResult.current.runState.status).toBe('done'));
+    expect(selSpy).not.toHaveBeenCalledWith({ queryKey: SCHEMA_QUERY_KEY });
   });
 
   it('a superseding run ignores the aborted prior run and ends on the latest result', async () => {

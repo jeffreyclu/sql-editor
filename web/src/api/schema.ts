@@ -69,6 +69,40 @@ export function qualifiedTableNames(schema: SchemaTree): string[] {
     .sort((a, b) => a.localeCompare(b));
 }
 
+// Leading DDL keywords that change the schema tree (databases / tables / columns). Used to decide
+// whether a completed run should refresh the cached schema that feeds the explorer + autocomplete
+// (DL-035). TRUNCATE/INSERT/SET are intentionally excluded — they don't alter the tree.
+const SCHEMA_CHANGING_KEYWORDS = new Set([
+  'CREATE',
+  'DROP',
+  'ALTER', // column add/drop/modify/rename
+  'RENAME',
+  'ATTACH',
+  'DETACH',
+  'EXCHANGE',
+]);
+
+/** True if any executed statement is schema-changing DDL, so the schema cache should be refreshed. */
+export function affectsSchema(statements: ReadonlyArray<{ statement: string }>): boolean {
+  return statements.some(({ statement }) => SCHEMA_CHANGING_KEYWORDS.has(leadingKeyword(statement)));
+}
+
+/** Upper-cased leading keyword, skipping whitespace + line/block comments (mirrors the backend). */
+function leadingKeyword(statement: string): string {
+  let rest = statement;
+  for (;;) {
+    const before = rest;
+    rest = rest
+      .replace(/^\s+/, '')
+      .replace(/^--[^\n]*(?:\n|$)/, '')
+      .replace(/^\/\*[\s\S]*?\*\//, '');
+    if (rest === before) {
+      break;
+    }
+  }
+  return rest.match(/^[A-Za-z_]+/)?.[0].toUpperCase() ?? '';
+}
+
 /**
  * Transform flat `{ database, table, column, type }` rows into a `database → table → columns` tree.
  * Rows are assumed ordered (the query sorts them), but we group defensively so order isn't relied on.

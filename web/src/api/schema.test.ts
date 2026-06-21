@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { qualifiedTableNames, rowsToTree, type SchemaTree } from './schema';
+import { affectsSchema, qualifiedTableNames, rowsToTree, type SchemaTree } from './schema';
 
 describe('rowsToTree', () => {
   it('groups flat system.columns rows into a database → table → columns tree', () => {
@@ -70,5 +70,33 @@ describe('qualifiedTableNames', () => {
 
   it('returns an empty list for an empty tree', () => {
     expect(qualifiedTableNames([])).toEqual([]);
+  });
+});
+
+describe('affectsSchema', () => {
+  const stmts = (...sql: string[]) => sql.map((statement) => ({ statement }));
+
+  it('is true for schema-changing DDL (create/drop/alter/rename)', () => {
+    expect(affectsSchema(stmts('CREATE TABLE t (id UInt32) ENGINE = Memory'))).toBe(true);
+    expect(affectsSchema(stmts('DROP TABLE t'))).toBe(true);
+    expect(affectsSchema(stmts('ALTER TABLE t ADD COLUMN c String'))).toBe(true);
+    expect(affectsSchema(stmts('RENAME TABLE a TO b'))).toBe(true);
+    expect(affectsSchema(stmts('detach table t'))).toBe(true); // case-insensitive
+  });
+
+  it('is true if any statement in a multi-statement run is DDL', () => {
+    expect(affectsSchema(stmts('SELECT 1', 'DROP TABLE t'))).toBe(true);
+  });
+
+  it('is false for data/session statements', () => {
+    expect(affectsSchema(stmts('SELECT * FROM t'))).toBe(false);
+    expect(affectsSchema(stmts('INSERT INTO t VALUES (1)'))).toBe(false);
+    expect(affectsSchema(stmts('TRUNCATE TABLE t'))).toBe(false);
+    expect(affectsSchema(stmts('SET max_threads = 4'))).toBe(false);
+  });
+
+  it('sees through leading comments and whitespace', () => {
+    expect(affectsSchema(stmts('-- make it\n  CREATE TABLE t (id UInt32) ENGINE = Memory'))).toBe(true);
+    expect(affectsSchema(stmts('/* c */ SELECT 1'))).toBe(false);
   });
 });
