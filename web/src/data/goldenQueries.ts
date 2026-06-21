@@ -149,4 +149,47 @@ export const goldenQueries: readonly GoldenQuery[] = [
     category: 'select',
     sql: "SELECT 'a; b' AS literal, 'not -- a comment' AS note;",
   },
+  {
+    id: 'error-unknown-function',
+    title: 'Unknown function',
+    description: 'Calls a function that does not exist — a runtime error from ClickHouse.',
+    category: 'error',
+    sql: 'SELECT no_such_function(42);',
+  },
+  {
+    id: 'error-unknown-column',
+    title: 'Unknown column',
+    description: 'References a column that is not in scope.',
+    category: 'error',
+    sql: 'SELECT missing_column FROM numbers(10);',
+  },
+  {
+    id: 'error-type-conversion',
+    title: 'Type conversion error',
+    description: 'Parses a non-numeric string as an integer — fails at runtime.',
+    category: 'error',
+    sql: "SELECT toInt32('not-a-number');",
+  },
+  {
+    id: 'error-divide-by-zero',
+    title: 'Division by zero',
+    description: 'Integer division by zero raises a runtime error.',
+    category: 'error',
+    sql: 'SELECT intDiv(1, 0);',
+  },
+  {
+    id: 'error-syntax',
+    title: 'Syntax error',
+    description: 'Malformed SQL — a SELECT with no expression list. Fails to parse.',
+    category: 'error',
+    sql: 'SELECT FROM numbers(10);',
+  },
+  {
+    id: 'long-in-list',
+    title: 'Very long query',
+    description:
+      'A single statement with a 2000-element IN list — stress-tests parsing, the request body, and the editor.',
+    category: 'select',
+    sql: `SELECT number FROM numbers(2000) WHERE number IN (${Array.from({ length: 2000 }, (_, i) => i).join(', ')}) ORDER BY number;`,
+  },
 ];

@@ -81,6 +81,9 @@ describe('classify over the golden dataset (DL-016)', () => {
       expect(kinds.length).toBeGreaterThan(1);
       expect(kinds).toContain('command'); // create / insert
       expect(kinds).toContain('query'); // ...and select
+    } else if (golden.category === 'error') {
+      // Invalid SQL has no meaningful kind — only assert it's a single, validly-typed statement.
+      expect(kinds).toHaveLength(1);
     } else {
       expect(kinds).toHaveLength(1);
       expect(kinds[0]).toBe(golden.category === 'ddl' ? 'command' : 'query');

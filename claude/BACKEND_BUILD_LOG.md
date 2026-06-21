@@ -302,3 +302,22 @@ To stay non-divergent and robust to future additions, the backend golden-driven 
 classification asserts valid kinds + that multi-statement scripts exercise both `command` and `query`.
 Validated end-to-end: every golden query runs against ClickHouse (the complex ones return expected
 results; `invalid-query` is the deliberate error path).
+
+### More failure cases + a very long query
+
+Added 5 distinct **failure modes** (category `error`) and one **very long query** to the golden
+dataset, each verified against live ClickHouse:
+
+| id | demonstrates | CH error |
+|---|---|---|
+| `error-unknown-function` | function that doesn't exist | Code 46 |
+| `error-unknown-column` | column not in scope | Code 47 |
+| `error-type-conversion` | bad string→int parse | Code 6 |
+| `error-divide-by-zero` | integer division by zero | Code 153 |
+| `error-syntax` | malformed SQL (no expression list) | Code 62 |
+| `long-in-list` | ~11 KB single statement (2000-element `IN` list) | runs; 2000 rows |
+
+The classifier golden test now treats `error` cases as kind-agnostic (invalid SQL has no
+meaningful query/command kind) so future non-`SELECT`-leading failures won't break it. The long
+query is generated flat (a wide `IN` list, not a deep `UNION`) to avoid ClickHouse parse-depth
+limits, and through the server it also exercises the row cap (2000 → capped to 1000, `truncated`).
