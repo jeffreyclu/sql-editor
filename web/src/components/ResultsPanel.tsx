@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { Container, Text } from '@clickhouse/click-ui';
 import type { RunState } from '../hooks/useRunQuery';
+import type { ResultAction } from '../plugins/types';
 import { StatementResultCard } from './StatementResultCard';
 import { ErrorBanner } from './ErrorBanner';
 
@@ -8,9 +9,11 @@ import { ErrorBanner } from './ErrorBanner';
 // using Click UI Container for layout (DL-017) so spacing/structure come from the design system.
 export interface ResultsPanelProps {
   state: RunState;
+  /** Result-action plugins (DL-006/DL-024) rendered on each data result's card. */
+  resultActions?: ResultAction[];
 }
 
-function ResultsPanelComponent({ state }: ResultsPanelProps) {
+function ResultsPanelComponent({ state, resultActions }: ResultsPanelProps) {
   switch (state.status) {
     case 'idle':
       return (
@@ -44,7 +47,7 @@ function ResultsPanelComponent({ state }: ResultsPanelProps) {
       return (
         <Container orientation="vertical" gap="md" padding="md" fillWidth>
           {statements.map((result, index) => (
-            <StatementResultCard key={index} result={result} index={index} />
+            <StatementResultCard key={index} result={result} index={index} actions={resultActions} />
           ))}
           {stoppedEarly && (
             <Text size="sm" color="warning">
