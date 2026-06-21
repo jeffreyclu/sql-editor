@@ -827,3 +827,61 @@ ADR-lite: **Context → Decision → Consequences → Alternatives**.
   viable drop-in behind the same port; not chosen because Gemini's native `responseSchema` maps more
   cleanly to our structured contract and its free tier is generous); **OpenRouter** free models
   (more variable availability); keeping Anthropic with a small prepay (rejected by the user — wanted free).
+
+---
+
+## DL-033 — Import can create the target table (Nullable(String) from the header)
+
+- **Date:** 2026-06-21
+- **Status:** Accepted (extends DL-006/DL-030; revisits the "table must already exist" limit)
+- **Decided by:** User (product owner) — "stick with [data import], but allow the user to create a new table."
+- **Context:** Import (DL-030) only targeted *existing* tables, so importing into a fresh table meant
+  hand-writing DDL first. The product owner asked to create the table inline as part of the import.
+- **Decision:** `POST /import` accepts an optional `createTable` flag. When set, the backend infers
+  **column names** from the file's first line (header for `…WithNames`/`JSONEachRow`; positional
+  `c1..cN` for the headerless formats) and runs
+  `CREATE TABLE IF NOT EXISTS <table> (<col> Nullable(String), …) ENGINE = MergeTree ORDER BY tuple()`
+  via `executor.command` **before** the insert. Types are intentionally all `Nullable(String)` — a
+  deterministic, dependency-free choice that accepts any value the file holds (no fragile type
+  inference); the user can re-type columns later. The frontend table picker became a searchable,
+  **creatable** Click UI `Select` (`allowCreateOption`): pick an existing table or type a new name.
+  A typed name not in the schema is treated as new (`createTable: true`). `useImportFile` now
+  invalidates the schema query on success so a created table appears in the explorer/picker.
+- **Consequences:** import no longer requires pre-creating a table; new tables show up immediately.
+  All-String columns are a deliberate MVP trade-off (over-engineering avoidance) — typed inference
+  is a possible follow-up. Verified end-to-end against the ClickHouse container (create → insert →
+  count). Covered by `inferColumnNames` unit tests + a route test (CREATE then insert).
+- **Alternatives considered:** client- or server-side **type sniffing** (rejected for now — fiddly,
+  error-prone, against the "avoid over-engineering" rule); a per-column **type editor** in the panel
+  (heavier UI; deferred); ClickHouse server-side schema inference (needs the data on the CH server /
+  a table function — not available for a buffered HTTP upload).
+
+---
+
+## DL-034 — Readable errors: clean ClickHouse messages + colour-coded toasts
+
+- **Date:** 2026-06-21
+- **Status:** Accepted (refines DL-027 toasts + DL-004 error surfaces)
+- **Decided by:** Engineering (product-owner feedback: errors are unreadable, toasts aren't coloured)
+- **Context:** ClickHouse echoes the failing SQL (and a build tag) in its error messages, so a query
+  with a long IN-list / a rejected import produced multi-KB errors that blew out the results panel
+  and the toasts. Separately, Click UI toasts only tint the *icon* by type — the surface stayed
+  neutral, so success/error weren't distinguishable at a glance.
+- **Decision:**
+  - **`formatClickHouseError` (`web/src/api/formatError.ts`)** — a pure helper that normalises
+    whitespace, strips the trailing `(version …)` tag, and cuts the echoed query / "Expected one of"
+    token dump at known markers. Applied where errors are shown: the per-statement card and the
+    transport-error banner (`StatementResultCard`/`ResultsPanel`), and the import error toast. The
+    failing SQL is already shown on the card, so dropping the echo loses nothing.
+  - **Scroll cap** — `.statement-card__error { max-height: 200px; overflow-y: auto }` so an unusually
+    long (even post-clean) message scrolls within the card instead of pushing results down.
+  - **Coloured toasts** — `useToast` attaches a per-type class (`cui-toast cui-toast--{success|
+    danger|warning|info}`); `styles.css` tints the surface with `--click-alert-color-background-*`
+    tokens (DL-021). The doubled class out-specifies the styled-component's background without
+    `!important`. Error toast text is truncated (`truncateForToast`) so a toast can't cover the screen.
+- **Consequences:** errors read cleanly in both surfaces; toast type is obvious by colour. Covered by
+  `formatError` unit tests; toast coloring verified structurally (Click UI forwards `className` to the
+  toast root; the alert background tokens exist in the built theme).
+- **Alternatives considered:** a fully neutral "show the raw error, just scrollable" (rejected — the
+  echoed SQL is pure noise next to the card's SQL); patching Click UI's Toast directly (rejected —
+  styling via tokens + class is non-invasive and upgrade-safe).

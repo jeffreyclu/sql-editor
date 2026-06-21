@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Button, Container, Panel, Text } from '@clickhouse/click-ui';
+import { Container, IconButton, Panel, Text } from '@clickhouse/click-ui';
 import { usePlugins } from '../plugins/PluginProvider';
 import type { PluginContext } from '../plugins/types';
 import { useEditorActions } from '../state/EditorProvider';
@@ -25,6 +25,9 @@ export function PluginPanel({ pluginId, placement = 'left', onClose }: PluginPan
 
   if (!plugin) return null;
 
+  // Collapse toward the edge the panel is docked to: a left panel collapses left, a right one right.
+  const collapseIcon = placement === 'right' ? 'chevron-right' : 'chevron-left';
+
   return (
     <Panel
       className={`plugin-panel plugin-panel--${placement}`}
@@ -41,7 +44,13 @@ export function PluginPanel({ pluginId, placement = 'left', onClose }: PluginPan
         fillWidth
       >
         <Text weight="medium">{plugin.title}</Text>
-        <Button type="empty" label="Close" onClick={onClose} />
+        <IconButton
+          icon={collapseIcon}
+          type="ghost"
+          size="sm"
+          aria-label="Collapse panel"
+          onClick={onClose}
+        />
       </Container>
       {plugin.renderPanel(ctx, onClose)}
     </Panel>

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { importFile } from './import';
+import { formatForFileName, importFile } from './import';
 import { ApiError } from './apiClient';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -25,6 +25,20 @@ describe('importFile', () => {
     expect(body.get('file')).toBe(file);
     expect(body.get('table')).toBe('events');
     expect(body.get('format')).toBe('CSV');
+  });
+
+  it('appends createTable only when requested', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ table: 'new_t', format: 'CSVWithNames', created: true, queryId: 'q3' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const file = new File(['a,b\n1,2\n'], 'data.csv', { type: 'text/csv' });
+    await importFile({ file, table: 'new_t', createTable: true });
+
+    const body = fetchMock.mock.calls[0][1].body as FormData;
+    expect(body.get('createTable')).toBe('true');
   });
 
   it('omits the format field when no format is supplied', async () => {
@@ -54,5 +68,21 @@ describe('importFile', () => {
       message: "unknown table 'nope'",
     });
     await expect(importFile({ file, table: 'nope' })).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+describe('formatForFileName', () => {
+  it('maps known extensions to a default format (case-insensitive)', () => {
+    expect(formatForFileName('events.csv')).toBe('CSVWithNames');
+    expect(formatForFileName('EVENTS.CSV')).toBe('CSVWithNames');
+    expect(formatForFileName('data.tsv')).toBe('TabSeparatedWithNames');
+    expect(formatForFileName('data.tab')).toBe('TabSeparatedWithNames');
+    expect(formatForFileName('rows.json')).toBe('JSONEachRow');
+    expect(formatForFileName('rows.ndjson')).toBe('JSONEachRow');
+  });
+
+  it('returns null for extensions it cannot map, so the caller keeps the current format', () => {
+    expect(formatForFileName('notes.txt')).toBeNull();
+    expect(formatForFileName('no-extension')).toBeNull();
   });
 });

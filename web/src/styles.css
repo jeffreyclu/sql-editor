@@ -199,3 +199,26 @@ body {
 }
 
 /* (Plugin list rows are pure Click UI — CodeBlock + Button + Text/Badge — no bespoke CSS.) */
+
+/* Failed-statement error: the message is cleaned (formatClickHouseError), but cap the height so an
+   unusually long one scrolls inside the card instead of pushing the results down (DL-034). */
+.statement-card__error {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* Toasts (DL-034): Click UI only tints the toast *icon* by type, leaving a neutral surface. Tint
+   the whole toast with the design-system feedback colours so success/error/info read at a glance.
+   The doubled class out-specifies the styled-component's single-class background without !important. */
+.cui-toast.cui-toast--success {
+  background-color: var(--click-alert-color-background-success);
+}
+.cui-toast.cui-toast--danger {
+  background-color: var(--click-alert-color-background-danger);
+}
+.cui-toast.cui-toast--warning {
+  background-color: var(--click-alert-color-background-warning);
+}
+.cui-toast.cui-toast--info {
+  background-color: var(--click-alert-color-background-info);
+}

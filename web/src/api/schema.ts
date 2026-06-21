@@ -59,6 +59,17 @@ export async function fetchSchema(signal?: AbortSignal): Promise<SchemaTree> {
 }
 
 /**
+ * Flatten the schema tree to database-qualified table names (`database.table`), sorted for a
+ * stable picker order. Qualifying disambiguates same-named tables across databases and is a form
+ * the backend (`POST /import`) accepts directly, so the import target is always unambiguous.
+ */
+export function qualifiedTableNames(schema: SchemaTree): string[] {
+  return schema
+    .flatMap((database) => database.tables.map((table) => `${database.name}.${table.name}`))
+    .sort((a, b) => a.localeCompare(b));
+}
+
+/**
  * Transform flat `{ database, table, column, type }` rows into a `database → table → columns` tree.
  * Rows are assumed ordered (the query sorts them), but we group defensively so order isn't relied on.
  */

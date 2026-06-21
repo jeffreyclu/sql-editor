@@ -4,6 +4,7 @@ import type { StatementResult } from '../api/types';
 import type { ResultAction } from '../plugins/types';
 import { ResultTable } from './ResultTable';
 import { ErrorBanner } from './ErrorBanner';
+import { formatClickHouseError } from '../api/formatError';
 
 // Per-statement result panel built from Click UI primitives (DL-017): a Panel surface with a
 // header Container (index · SQL · status Badge · metrics · result actions) over a body that adapts
@@ -63,7 +64,11 @@ function StatementResultCardComponent({ result, index, actions }: StatementResul
       <Separator size="xs" />
       <Container padding="sm" fillWidth isOverflowScroll>
         {status === 'error' ? (
-          <ErrorBanner title="Statement failed" message={result.error?.message ?? 'Unknown error'} />
+          // ClickHouse echoes the SQL in its errors (the statement is already shown above), so the
+          // message is cleaned (DL-034); the wrapper caps height so a still-long one scrolls.
+          <div className="statement-card__error">
+            <ErrorBanner title="Statement failed" message={formatClickHouseError(result.error?.message)} />
+          </div>
         ) : kind === 'query' ? (
           <ResultTable columns={columns ?? []} rows={rows ?? []} />
         ) : (

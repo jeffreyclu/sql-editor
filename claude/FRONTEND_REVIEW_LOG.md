@@ -435,3 +435,39 @@ hardens / before relying on it) · **NOTE** (non-blocking, logged for traceabili
 - **Single open-panel state.** `App` tracks one `openPluginId`; fine while every plugin is left-placed,
   but when a right-placement plugin lands (the DL-026 seam) you'll want independent left/right open
   state so a source + a detail can show together.
+
+---
+
+## Review R12 — import-creates-table + readable errors/toasts (was DL-031/032 → renumbered DL-033/034)
+
+- **Date:** 2026-06-21
+- **Reviewed:** uncommitted FE/BE track — `formatError.ts` (+test), `useToast.ts`, `StatementResultCard`,
+  `ResultsPanel`, `fileImportPlugin`/`api/import`/`routes/import` (create-table), `schema`. `npm test`
+  → **186 passed** (23 files); web typecheck clean.
+- **Verdict:** ✅ **Approve.** One BLOCKER found **and fixed by the reviewer** (decision-log collision).
+
+### 🔴 BLOCKER-1 — decision-log numbering collision (RESOLVED here)
+- This track appended **DL-031** (import creates table) and **DL-032** (readable errors/toasts) to the
+  append-only log — but those numbers were **already committed** for the AI assistant (DL-031 proxy,
+  DL-032 Gemini, commit `6e66286`). The working `DECISION_LOG.md` had duplicate DL-031/DL-032, and
+  code comments cited the wrong numbers.
+- **Fix applied:** renumbered this (later, uncommitted) track → **DL-033** (import creates table) and
+  **DL-034** (errors/toasts), and updated every code-comment reference (`fileImportPlugin`,
+  `useImportFile`, `api/import`, `routes/import`, `styles.css`, `StatementResultCard`, `useToast`,
+  `formatError`). Verified: each DL number now appears once; AI DL-031/032 untouched.
+- **Process note:** classic two-agents-one-tree hazard. Coordinate the next free DL number before logging.
+
+### Solid
+- **DL-033 (import creates table):** table name validated by the identifier regex **before** the
+  `CREATE TABLE` DDL runs, and column identifiers are backtick-quoted/escaped — **not** a DDL-injection
+  surface. All-`Nullable(String)` columns are a deliberate, dependency-free MVP (logged); `IF NOT
+  EXISTS` is idempotent; `useImportFile` invalidates the schema query so a new table appears. Creatable
+  Click UI `Select` for existing-or-new target. Covered by `inferColumnNames` + route tests.
+- **DL-034 (readable errors/toasts):** `formatClickHouseError` is pure/defensive (strips echoed SQL +
+  version tag, normalises whitespace, safe on non-string); applied on card + banner + import toast;
+  error height capped + scrollable; toasts colour-coded via Click UI alert tokens. `formatError` unit-tested.
+
+### NOTE (non-blocking)
+- Toast colouring depends on Click UI's internal `cui-toast` class names + forwarded `className` —
+  brittle to a Click UI internals change. Acceptable (token-based, no `!important`); revisit if a CU
+  upgrade changes the markup.

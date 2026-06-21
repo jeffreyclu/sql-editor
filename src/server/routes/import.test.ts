@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { Readable } from 'stream';
-import { createImportRouter } from './import';
+import { createImportRouter, inferColumnNames } from './import';
 import type { ClickHouseExecutor, InsertParams } from '../clickhouse';
 
 /** Build an executor whose `insert` is the given mock; query/command should never be called. */
@@ -137,5 +137,75 @@ describe('POST /import', () => {
       .attach('file', Buffer.from('way-too-large-payload'), 'demo.csv');
 
     expect(res.status).toBe(413);
+  });
+
+  it('creates the table from the header before inserting when createTable is set', async () => {
+    const command = vi.fn(async () => ({ query_id: 'ddl-1' }));
+    const insert = vi.fn(async () => ({ query_id: 'ins-3', rowsWritten: 2 }));
+    const executor: ClickHouseExecutor = {
+      query: async () => { throw new Error('unexpected query'); },
+      command,
+      insert,
+    };
+
+    const res = await request(appWith(executor))
+      .post('/import')
+      .field('table', 'new_table')
+      .field('createTable', 'true')
+      .attach('file', Buffer.from('id,label\n1,one\n2,two\n'), 'new.csv');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ table: 'new_table', created: true, rowsWritten: 2 });
+
+    // CREATE runs first, with the header columns as Nullable(String); then the insert.
+    expect(command).toHaveBeenCalledTimes(1);
+    const ddl = command.mock.calls[0][0];
+    expect(ddl).toContain('CREATE TABLE IF NOT EXISTS new_table');
+    expect(ddl).toContain('`id` Nullable(String)');
+    expect(ddl).toContain('`label` Nullable(String)');
+    expect(ddl).toContain('ENGINE = MergeTree ORDER BY tuple()');
+    expect(insert).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not create a table when createTable is not set', async () => {
+    const command = vi.fn(async () => ({ query_id: 'ddl' }));
+    const insert = vi.fn(async () => ({ query_id: 'ins', rowsWritten: 1 }));
+
+    await request(appWith({ query: async () => { throw new Error('no'); }, command, insert }))
+      .post('/import')
+      .field('table', 'demo')
+      .attach('file', Buffer.from('id\n1\n'), 'demo.csv');
+
+    expect(command).not.toHaveBeenCalled();
+  });
+});
+
+describe('inferColumnNames', () => {
+  it('reads CSVWithNames headers, honouring quotes and commas', () => {
+    const csv = Buffer.from('id,"full, name",notes\r\n1,"a",x\n');
+    expect(inferColumnNames(csv, 'CSVWithNames')).toEqual(['id', 'full, name', 'notes']);
+  });
+
+  it('reads TabSeparatedWithNames headers', () => {
+    const tsv = Buffer.from('id\tlabel\tvalue\n1\ta\t2\n');
+    expect(inferColumnNames(tsv, 'TabSeparatedWithNames')).toEqual(['id', 'label', 'value']);
+  });
+
+  it('reads JSONEachRow keys from the first object', () => {
+    const json = Buffer.from('{"id":1,"label":"a"}\n{"id":2}\n');
+    expect(inferColumnNames(json, 'JSONEachRow')).toEqual(['id', 'label']);
+  });
+
+  it('synthesises positional names for headerless formats', () => {
+    expect(inferColumnNames(Buffer.from('1,2,3\n'), 'CSV')).toEqual(['c1', 'c2', 'c3']);
+    expect(inferColumnNames(Buffer.from('a\tb\n'), 'TabSeparated')).toEqual(['c1', 'c2']);
+  });
+
+  it('falls back to positional names for blank header cells', () => {
+    expect(inferColumnNames(Buffer.from('id,,notes\n'), 'CSVWithNames')).toEqual(['id', 'c2', 'notes']);
+  });
+
+  it('returns [] for an empty file', () => {
+    expect(inferColumnNames(Buffer.from(''), 'CSVWithNames')).toEqual([]);
   });
 });

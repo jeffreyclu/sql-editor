@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rowsToTree } from './schema';
+import { qualifiedTableNames, rowsToTree, type SchemaTree } from './schema';
 
 describe('rowsToTree', () => {
   it('groups flat system.columns rows into a database → table → columns tree', () => {
@@ -45,5 +45,30 @@ describe('rowsToTree', () => {
     expect(rowsToTree(rows)).toEqual([
       { name: 'shop', tables: [{ name: 'orders', columns: [{ name: 'id', type: 'UInt64' }] }] },
     ]);
+  });
+});
+
+describe('qualifiedTableNames', () => {
+  it('flattens the tree to database-qualified, sorted table names', () => {
+    const tree: SchemaTree = [
+      {
+        name: 'shop',
+        tables: [
+          { name: 'orders', columns: [] },
+          { name: 'customers', columns: [] },
+        ],
+      },
+      { name: 'analytics', tables: [{ name: 'events', columns: [] }] },
+    ];
+
+    expect(qualifiedTableNames(tree)).toEqual([
+      'analytics.events',
+      'shop.customers',
+      'shop.orders',
+    ]);
+  });
+
+  it('returns an empty list for an empty tree', () => {
+    expect(qualifiedTableNames([])).toEqual([]);
   });
 });

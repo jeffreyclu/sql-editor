@@ -4,6 +4,7 @@ import type { RunState } from '../hooks/useRunQuery';
 import type { ResultAction } from '../plugins/types';
 import { StatementResultCard } from './StatementResultCard';
 import { ErrorBanner } from './ErrorBanner';
+import { formatClickHouseError } from '../api/formatError';
 
 // Pure results pane. Renders every async state explicitly (DL-004) — idle/running/error/done —
 // using Click UI Container for layout (DL-017) so spacing/structure come from the design system.
@@ -30,7 +31,9 @@ function ResultsPanelComponent({ state, resultActions }: ResultsPanelProps) {
     case 'error':
       return (
         <Container padding="md" fillWidth>
-          <ErrorBanner title="Request failed" message={state.message} />
+          <div className="statement-card__error">
+            <ErrorBanner title="Request failed" message={formatClickHouseError(state.message)} />
+          </div>
         </Container>
       );
     case 'done': {
