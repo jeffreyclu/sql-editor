@@ -9,7 +9,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:server": "vitest run --project server",
-    "test:web": "vitest run --project web"
+    "test:web": "vitest run --project web",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit"
   },
   "keywords": [],
   "author": "",

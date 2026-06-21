@@ -140,7 +140,7 @@ describe('POST /import', () => {
   });
 
   it('creates the table from the header before inserting when createTable is set', async () => {
-    const command = vi.fn(async () => ({ query_id: 'ddl-1' }));
+    const command = vi.fn(async (_sql: string) => ({ query_id: 'ddl-1' }));
     const insert = vi.fn(async () => ({ query_id: 'ins-3', rowsWritten: 2 }));
     const executor: ClickHouseExecutor = {
       query: async () => { throw new Error('unexpected query'); },
