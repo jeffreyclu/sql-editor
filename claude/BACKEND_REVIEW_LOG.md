@@ -214,3 +214,20 @@ hardens / before relying on it) · **NOTE** (non-blocking, logged for traceabili
 
 Net: the backend base product (query pipeline · persistence · serving · file-import) is complete
 and all review findings are cleared.
+
+---
+
+## Review R6 — backend tests driven by the golden dataset (DL-016)
+
+- **Date:** 2026-06-20
+- **Reviewed:** `40f4ab1`; golden blocks in `splitStatements.test` / `classify.test` /
+  `query.test`. `npm test` → **103 passed**.
+- **Verdict:** ✅ **Approve.** Resolves **FE review R4 NOTE-1** — DL-016 is now fully realized
+  (the shared `web/src/data/goldenQueries.ts` is the single source for the FE Examples picker
+  **and** the backend fixtures).
+- **Substantive, not hollow:** splitter asserts clean/trimmed/non-empty statements, no trailing
+  `;`, correct count (multi = 3); classifier asserts `CREATE;INSERT;SELECT` →
+  `[command, command, query]`; `/query` route asserts 200 + per-statement count + all success
+  (shape/ordering — real error semantics remain covered by the dedicated stop-on-first-error test).
+- **NOTE (non-blocking):** the deep relative import `../../../web/src/data/goldenQueries` is a
+  little brittle; a path alias would be tidier. Test-only.

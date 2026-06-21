@@ -178,3 +178,42 @@ hardens / before relying on it) · **NOTE** (non-blocking, logged for traceabili
 - **Coordination / Slice 3** — persistence (history/saved), plugins, golden dataset, and
   schema-autocomplete are deferred; `web/src/api/types.ts` does not yet mirror the backend's
   `HistoryEntry`/`SavedQuery` (add when those features land, via TanStack `useQuery` — DL-020).
+
+---
+
+## Review R4 — Slice 3a: plugin seam + Examples picker (DL-006/DL-016)
+
+- **Date:** 2026-06-20
+- **Reviewed:** `plugins/` (types, `PluginProvider`, `examplesPlugin`), `containers/PluginBar` +
+  `PluginPanel`, `data/goldenQueries.ts`, `App.tsx`, `EditorSurface` theme prop. `npm test` →
+  **88 passed** (9 web across 4 files).
+- **Verdict:** ✅ **Approve — no blockers, no high-priority issues.**
+
+### What's solid
+- **OCP plugin seam (DL-006):** `EditorPlugin` + `PluginContext` are minimal (DL-008) — toolbar
+  entry + `renderPanel(ctx, close)`; CM-extension/command points deferred until needed. Adding a
+  plugin never touches editor core. `PluginProvider` supplies plugins at composition (swappable in tests).
+- **Container split (DL-023):** `PluginBar`/`PluginPanel` are connected wrappers; the plugin def +
+  golden list stay declarative; `App` owns only the open-panel id (local state — right for an
+  infrequent toggle, DL-019).
+- **Click UI (DL-017):** `Button`/`Panel`/`Container`/`Text`; the lone bespoke element is the
+  two-line list row, a real `<button>` (keyboard-accessible) — justified (no CH list-item primitive).
+- **Theming (DL-021):** `EditorSurface` gains a `theme` prop fed by `EditorPane`→`useTheme`, so
+  CodeMirror follows light/dark while staying pure.
+- Sensible pivots, documented: Flyout → in-layout `Panel` (Flyout rendered invisible); golden
+  dataset kept shared (re-inlining reverted).
+
+### NOTES (non-blocking)
+- **DL-016 only half-realized.** `goldenQueries.ts` is consumed by the **frontend** (Examples +
+  FE tests), but the **backend tests still use inline fixtures** — they don't import this file
+  (and the `src/server` ↔ `web/src` boundary makes it awkward). Either wire BE tests to it or
+  soften the "single source for backend fixtures" claim in the file/DL-016.
+- **Re-render on keystroke:** `PluginPanel` (and `RunControls`) read the editor context for its
+  *actions* but re-render on every `doc` change (coarse-context trade-off accepted by DL-019).
+  Fine at this scale; if panels grow, split an actions-only context.
+- **Minor a11y:** plugin toggle buttons could expose `aria-pressed`/`aria-expanded`.
+
+### Coordination
+- Slice 3b/3c (History, Saved queries) will follow the same `renderPanel` shape over TanStack
+  `useQuery`/`useMutation` (DL-013/DL-020) and must mirror `HistoryEntry`/`SavedQuery` in
+  `web/src/api/types.ts`.
