@@ -48,7 +48,7 @@ npm run test:web
 
 ## Features
 
-- **CodeMirror editor** — SQL syntax highlighting, line numbers, and **Cmd/Ctrl+Enter** to run.
+- **CodeMirror editor** — SQL syntax highlighting and line numbers.
 - **Run single or multi-statement scripts** — each statement is split, classified, and executed
   in order; results render per statement (a table for data, a "command executed" note for
   DDL/DML, an inline error for a failure). Execution **stops at the first error** and says so.

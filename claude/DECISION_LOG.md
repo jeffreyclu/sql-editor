@@ -40,7 +40,7 @@ ADR-lite: **Context → Decision → Consequences → Alternatives**.
 - **Status:** Accepted
 - **Decided by:** User, after buy-vs-build spike (see `SPIKE-buy-vs-build.md`)
 - **Context:** Click UI has no editor. We need syntax highlighting, line numbers,
-  keymaps (Cmd/Ctrl+Enter to run), and ideally schema autocomplete.
+  and ideally schema autocomplete.
 - **Decision:** **Buy** CodeMirror 6 via `@uiw/react-codemirror` + `@codemirror/lang-sql`
   (both MIT, actively maintained, ~29 kB gzip for the wrapper).
 - **Consequences:**
@@ -250,7 +250,7 @@ ADR-lite: **Context → Decision → Consequences → Alternatives**.
     `AbortSignal` + per-statement error reporting (DL-004/DL-020).
   - Readability/maintainability (2) and trade-offs (6) → small single-purpose modules plus
     this decision log and the buy-vs-build spike as durable rationale.
-  - UX (5) → CodeMirror affordances, Cmd/Ctrl+Enter, cancel, timing/row counts, truncation notice.
+  - UX (5) → CodeMirror affordances, run + cancel, timing/row counts, truncation notice.
 - **Alternatives considered:** Optimize for feature count / pixel-perfect styling — rejected;
   the brief explicitly prioritizes clarity, structure, and reasoning over polish.
 
@@ -574,9 +574,8 @@ ADR-lite: **Context → Decision → Consequences → Alternatives**.
   toolbar action** (DL-006) where it fits — and explicitly defer the rest:
   - **Will add (high-value, low-cost):** export results as **CSV**; **schema browser sidebar**
     (databases → tables → columns over `system.tables`/`system.columns`, feeding autocomplete);
-    **run selection** (Cmd/Ctrl+Enter on a selection) + **run at cursor** (Cmd/Ctrl+Shift+Enter) +
-    **Esc to cancel**; **result-set search**; **client-side column sort**; saved-query polish
-    (Cmd/Ctrl+S + inline rename) alongside the Slice-3 saved-queries UI.
+    **result-set search**; **client-side column sort**; saved-query polish (Cmd/Ctrl+S + inline
+    rename) alongside the Slice-3 saved-queries UI.
   - **Already on the roadmap (Slice 3):** history UI, saved-queries UI, examples (golden dataset),
     schema autocomplete, file-import plugin.
   - **Deliberately deferred / out of scope (trade-off, not omission):** charts/visualizations;

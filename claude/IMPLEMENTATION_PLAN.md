@@ -24,7 +24,7 @@ design, state management, async/error/loading handling, UX, and trade-off reason
 
 **In scope (now)**
 - Vite + React + TypeScript frontend served at `/`.
-- SQL editor (CodeMirror 6) with run controls and Cmd/Ctrl+Enter.
+- SQL editor (CodeMirror 6) with run controls.
 - Backend that splits multi-statement scripts, executes them in order, and returns
   per-statement results with columns, types, row counts, timing, and errors.
 - Results UI: per-statement panels (table for data, "executed" note for commands, error banner).
@@ -63,7 +63,7 @@ These six criteria are the bar (DL-011). Every design choice traces to one or mo
 | **Readability & maintainability** | Small, named, single-purpose modules; domain types shared (`StatementResult`, `RunResponse`); shared-but-not-speculative components (DL-008); no clever indirection. Decisions are documented in `DECISION_LOG.md` so intent is recoverable. |
 | **Component design & state management** | Pure, `React.memo`'d presentational components (props only); business logic in hooks; state in Context/providers **split by update frequency** (DL-010) with **one small provider per concern** (Context + `useState`, DL-019) so typing never re-renders results. Click UI primitives for consistent, accessible UI. |
 | **Async flows, loading states, errors** | Run-query via TanStack Query `useMutation` (idle/pending/success/error) with `AbortSignal` cancellation (DL-020). Backend returns **per-statement** success/error with stop-on-first-error; UI shows explicit running/empty/error states and "remaining statements not run". Transport vs SQL errors are distinguished. |
-| **Basic UX & usability** | CodeMirror editor (highlighting, line numbers), Cmd/Ctrl+Enter to run, Cancel button, per-statement timing + row counts, truncation notice for large results, last-script persistence. |
+| **Basic UX & usability** | CodeMirror editor (highlighting, line numbers), Run/Cancel button, per-statement timing + row counts, truncation notice for large results, last-script persistence. |
 | **Thoughtfulness in trade-offs** | Every buy-vs-build call is reasoned and recorded (`SPIKE-buy-vs-build.md` + `DECISION_LOG.md`), including what we deliberately deferred (file import, virtualization, custom ClickHouse dialect) and why. |
 
 ## Architecture
@@ -249,7 +249,7 @@ web/
 machine. The mutation fn passes an `AbortSignal` so a new run cancels the in-flight one (wired to a
 Cancel button). History/saved/schema are `useQuery`; save/delete call `invalidateQueries`.
 
-**Cheap, high-value UX:** Cmd/Ctrl+Enter to run (CM keymap), per-statement elapsed/rowCount,
+**Cheap, high-value UX:** per-statement elapsed/rowCount,
 explicit loading/empty/error states, "remaining statements not run" on error, persist last
 script to `localStorage`.
 
@@ -348,8 +348,6 @@ adopt the high-leverage, low-cost gaps — each an editor plugin / toolbar actio
 - **Export results as CSV** (results-pane toolbar action).
 - **Schema browser sidebar** (databases → tables → columns) over `system.tables`/`system.columns`,
   feeding the planned autocomplete (DL-014 → DL-020).
-- **Run selection** (Cmd/Ctrl+Enter on a selection) + **run at cursor** (Cmd/Ctrl+Shift+Enter) +
-  **Esc to cancel** — CodeMirror keymap.
 - **Result search** + **client-side column sort** on the results grid.
 - **Saved-query polish**: Cmd/Ctrl+S to save + inline rename (with the Slice-3 saved-queries UI).
 

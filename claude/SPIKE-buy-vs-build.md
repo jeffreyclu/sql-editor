@@ -30,7 +30,7 @@ Click UI bundles `react-window`, so virtualization is available later if needed.
 
 | Option | Type | Weight | ClickHouse | Notes |
 |---|---|---|---|---|
-| **`@uiw/react-codemirror` + `@codemirror/lang-sql`** | Buy | ~29 kB gz | Generic SQL now; custom dialect later | MIT, active; **extension system = our plugin model**; schema autocomplete; easy Cmd+Enter keymap |
+| **`@uiw/react-codemirror` + `@codemirror/lang-sql`** | Buy | ~29 kB gz | Generic SQL now; custom dialect later | MIT, active; **extension system = our plugin model**; schema autocomplete |
 | `@monaco-editor/react` (Monaco) | Buy | ~500 kB gz | Via `@popsql/monaco-sql-languages` | VS Code engine; needs Vite web-worker setup; overkill |
 | `<textarea>` | Build | 0 | n/a | No highlighting/line numbers; weakest UX; we'd reimplement plugin hooks |
 

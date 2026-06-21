@@ -91,7 +91,7 @@ trade-offs. These must be rock-solid; every choice should trace to one or more.
 ## Key technical decisions (with rationale refs)
 
 - **Editor: CodeMirror 6** via `@uiw/react-codemirror` + `@codemirror/lang-sql` (DL-002). Click
-  UI has no editor. Cmd/Ctrl+Enter to run via keymap; CM extensions are the low-level plugin seam.
+  UI has no editor. CM extensions are the low-level plugin seam.
 - **Statement splitting: `dbgate-query-splitter`** on the **backend** (DL-003). No certified
   ClickHouse dialect → **unit-test edge cases** (`''` escaping, backticks, `--`/`/* */`
   comments, `;` in strings).

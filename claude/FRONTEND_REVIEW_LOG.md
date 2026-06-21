@@ -235,8 +235,8 @@ hardens / before relying on it) · **NOTE** (non-blocking, logged for traceabili
   stable, `isEmpty` keeps the same value, and `children` is a stable element (children-as-props
   bail-out) — so **only the `EditorDocContext` consumer (`EditorPane`) re-renders.** `RunControls`
   re-renders only on emptiness/runState change; `PluginPanel` not at all while typing.
-- **`getDoc` ref-backed reader** → Cmd/Ctrl+Enter and Run execute the latest document without
-  subscribing to it, keeping the CodeMirror extension stable (no per-keystroke reconfigure).
+- **`getDoc` ref-backed reader** → Run executes the latest document without subscribing to it,
+  keeping the CodeMirror extension stable (no per-keystroke reconfigure).
 - **Regression test** asserts an actions-only consumer renders exactly once across two edits — the
   right guard for precisely this issue. Combined `useEditor()` fully removed (no stale refs).
 - Not over-engineered: still plain React Context, no selector/store library; justified by the
@@ -245,4 +245,17 @@ hardens / before relying on it) · **NOTE** (non-blocking, logged for traceabili
 ### NOTE (non-blocking)
 - **Doc drift:** the skill / plan still name a single `useEditor` wrapper; it's now
   `useEditorDoc` / `useEditorIsEmpty` / `useEditorActions`. The principle is unchanged
-  (per-provider `useContext` wrappers, split by frequency) — worth a one-line sync.
+  (per-provider `useContext` wrappers, split by frequency) — worth a one-line sync. *(Resolved in
+  `cf73108`.)*
+
+---
+
+## Review R6 — results pane scroll fix
+
+- **Date:** 2026-06-20
+- **Reviewed:** `ResultsRegion.tsx` scroll fix. Web `tsc --noEmit` clean; `npm test` → **125 passed**.
+- **Verdict:** ✅ **Approved — no blockers.**
+- `isOverflowScroll` (no-op in Click UI v0.6.1) → `minHeight="0" overflow="auto"` on the `grow="1"`
+  Container. Correct flexbox idiom — a flex child needs `min-height:0` to shrink below its content so
+  `overflow` scrolls. Valid Click UI props (typechecks). Accurate code comment.
+- Running is button-only (product-owner decision).
