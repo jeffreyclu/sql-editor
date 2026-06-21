@@ -263,3 +263,21 @@ and all review findings are cleared.
   apart breaks the tree either way.
 - **Coordination:** assign clear ownership of `web/src/data/goldenQueries.ts` (the shared DL-016
   artifact) so it isn't dropped from commits again.
+
+---
+
+## Review R8 — error + long-query golden examples (`0c574e2`, DL-016)
+
+- **Date:** 2026-06-20
+- **Reviewed:** `0c574e2` — golden dataset +6 (5 `error` modes + 1 long single statement) and the
+  `classify.test` `error` branch. `npm run test:server` → **133 passed**.
+- **Verdict:** ✅ **Approve — no blockers.**
+- **Solid:** 5 distinct failure modes (unknown function / unknown column / type-conversion /
+  divide-by-zero / syntax) exercise the real error path, verified vs live ClickHouse. The classifier
+  golden test now treats `error` as **kind-agnostic** (length 1, no kind assertion) — correct, since
+  invalid SQL has no meaningful leading-keyword kind. The long example is a **flat 2000-element IN
+  list** (not a deep UNION) to dodge ClickHouse parse-depth limits — thoughtful. R7's derived
+  assertions absorbed the new rows with no edits to `splitStatements`/`query` tests.
+- **NOTE — not a backend issue:** backend is green in isolation (133), but the **unified `npm test`
+  is RED** due to the *frontend* Slice 3b (uncommitted): `examplesPlugin` now calls `useTheme()` and
+  `PluginBar.test` renders without a `<ThemeProvider>`. Flagged for the frontend review.

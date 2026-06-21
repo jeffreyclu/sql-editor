@@ -327,7 +327,9 @@ seen in action immediately. **In tests**, the same array feeds the splitter/clas
 5. **Editor + results UI** — CodeMirror surface, toolbar, per-statement results (features 1 & 2) + golden dataset + `examplesPlugin`. **Tests:** one critical UI path.
 6. **Plugins** — history / saveQuery / examples wired; plugin seam ready for file import (no upload yet).
 7. **Docs** — update root `README.md` (scripts, decisions, limitations); keep this `claude/` folder current.
-8. **(Later)** File import plugin + `/import` endpoint.
+8. **Schema explorer + autocomplete** — `schemaPlugin` panel + CodeMirror autocomplete from one
+   cached `useSchema` query over `system.*` via `POST /query` (DL-025); after Saved queries.
+9. **(Later)** File import plugin UI (`/import` endpoint already built).
 
 ## Risks & trade-offs
 
@@ -346,8 +348,10 @@ Benchmarked against ClickHouse Cloud's SQL Console. Most of its surface is out o
 adopt the high-leverage, low-cost gaps — each an editor plugin / toolbar action (DL-006):
 
 - **Export results as CSV** (results-pane toolbar action).
-- **Schema browser sidebar** (databases → tables → columns) over `system.tables`/`system.columns`,
-  feeding the planned autocomplete (DL-014 → DL-020).
+- **Schema explorer + autocomplete** (databases → tables → columns) — **scheduled as the slice after
+  Saved queries (DL-025)**. One `useSchema` (`useQuery`, cached) over `system.tables`/`system.columns`
+  feeds both a `schemaPlugin` panel and CodeMirror autocomplete. Data via the existing `POST /query`
+  (no new endpoint); delivered as a toggled plugin panel, not a permanent sidebar.
 - **Result search** + **client-side column sort** on the results grid.
 - **Saved-query polish**: Cmd/Ctrl+S to save + inline rename (with the Slice-3 saved-queries UI).
 

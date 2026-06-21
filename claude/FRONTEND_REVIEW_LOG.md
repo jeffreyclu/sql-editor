@@ -259,3 +259,39 @@ hardens / before relying on it) · **NOTE** (non-blocking, logged for traceabili
   Container. Correct flexbox idiom — a flex child needs `min-height:0` to shrink below its content so
   `overflow` scrolls. Valid Click UI props (typechecks). Accurate code comment.
 - Running is button-only (product-owner decision).
+
+---
+
+## Review R7 — Slice 3b: History plugin (DL-006 / DL-013 / DL-020)
+
+- **Date:** 2026-06-20
+- **Reviewed:** `api/types.ts` (`HistoryEntry`), `api/history.ts`, `hooks/useHistory.ts`,
+  `plugins/historyPlugin.tsx` (+ test), `useRunQuery` `onSettled`, `main.tsx`, and the
+  `examplesPlugin` Click UI change. `npm test` → **144 passed** (14 files).
+- **Verdict:** ✅ **Approve — no blockers.**
+
+### What's solid
+- **FE↔BE contract exact:** `web` `HistoryEntry` mirrors backend `types.ts`
+  (`id/sql/executedAt/status/statementCount/elapsedMs?/error?`) — no drift.
+- **History invalidation:** the run mutation's `onSettled` invalidates `HISTORY_QUERY_KEY`, so
+  history refreshes after every run **including errors** (the backend logs both; `onSettled` fires on
+  both). Only refetches when the panel is mounted — no wasted fetches.
+- **Hook safety:** `renderPanel` returns a `<HistoryList/>` component, so `useHistory` is never called
+  conditionally from `PluginPanel`.
+- **Plugin shape (DL-006):** same `renderPanel(ctx)` contract; load-into-editor via `ctx.setDoc`;
+  loading / error / empty states all rendered.
+- **DL-017 improved:** `examplesPlugin` now uses Click UI **`CardHorizontal`** (title/description/
+  onClick) — more compliant than the prior bespoke button. The earlier red `PluginBar` test
+  (`examplesPlugin` calling `useTheme` without a `ThemeProvider`) was fixed the right way — by
+  dropping the unnecessary `useTheme`, not by patching the harness.
+- **Test:** `historyPlugin.test` stubs `fetch`, renders, clicks a run → asserts `setDoc`. Substantive (DL-015).
+
+### NOTE (non-blocking)
+- Minor DL-017 inconsistency: examples use `CardHorizontal`, but history rows use a bespoke
+  `<button class="example-item">` (timestamp + status `Badge` + SQL preview). Consider
+  `CardHorizontal` (title = SQL, description = time, badge = status) for consistency — or keep if the
+  richer row layout warrants it. Cosmetic.
+
+### Coordination
+- Re-run is a trivial follow-on (`ctx.run` is wired). Next: Slice 3c (Saved queries), then the
+  Schema explorer + autocomplete slice (DL-025).

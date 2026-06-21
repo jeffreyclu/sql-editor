@@ -584,3 +584,30 @@ ADR-lite: **Context → Decision → Consequences → Alternatives**.
     (we cap results at 1000 instead — DL-009); filter→SQL builder.
 - **Consequences:** Closes the most visible UX gaps cheaply while keeping scope honest; the
   deferred list makes the trade-offs explicit for reviewers (eval criterion #6).
+
+---
+
+## DL-025 — Schema explorer + autocomplete: one slice, shared data, plugin panel
+
+- **Date:** 2026-06-20
+- **Status:** Accepted
+- **Decided by:** User
+- **Context:** The ClickHouse SQL Console has a table/schema explorer (databases → tables → columns)
+  plus schema-aware autocomplete. DL-024 listed the explorer as a "will add." Both need the same
+  `system.tables` / `system.columns` data, and neither is scheduled yet.
+- **Decision:** Build them as **one slice, scheduled right after Saved queries (3c)**. A single
+  **`useSchema`** (TanStack `useQuery`, cached — DL-020) feeds both:
+  - a **`schemaPlugin`** panel — databases → tables → expandable columns; clicking inserts a table
+    name via `ctx.setDoc`. Same `renderPanel` shape as History/Examples, so it drops into the plugin
+    architecture with no editor-core changes (DL-006).
+  - **CodeMirror autocomplete** via `sql({ schema })` from the same cached schema.
+  - **Data source:** reuse the existing **`POST /query`** (run `SELECT … FROM system.columns` /
+    `SHOW TABLES`) — **no new backend endpoint**. Revisit a dedicated `/api/schema` only if needed.
+  - **Placement:** a **toggled plugin panel** (consistent with the History/Examples rail), **not** a
+    permanent left sidebar.
+- **Consequences:** Schema is fetched/cached **once** and shared by the panel + autocomplete; zero
+  backend work; no core changes. Trade-off: a toggled panel is less prominent than the console's
+  always-on sidebar.
+- **Alternatives considered:** separate explorer/autocomplete fetches (rejected: double-fetch);
+  dedicated `/api/schema` endpoint (deferred: `/query` suffices); permanent left sidebar (deferred:
+  structural layout change — a future upsell).
