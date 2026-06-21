@@ -88,7 +88,8 @@ cp .env.example .env      # .env is gitignored
 
 ## Architecture
 
-A layered design, documented in detail under [`claude/`](./claude):
+A layered design — see [`claude/ARCHITECTURE.md`](./claude/ARCHITECTURE.md) for backend + frontend
+diagrams (Mermaid) and the request lifecycle. In brief:
 
 - **Backend** (`src/server/`) — Express app factory; `POST /query` (split → classify → execute →
   per-statement `{ statements }`); `/api/history` + `/api/queries` over SQLite repositories;
