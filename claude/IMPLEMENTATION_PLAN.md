@@ -89,14 +89,17 @@ Four layers, dependencies pointing inward (UI → hooks → services → types):
 ### Plugin system (editor addons) — DL-006
 
 ```ts
-interface ToolbarAction { id: string; label: string; icon?: string; run(ctx): void; }
+// As implemented (DL-006), extended by DL-026 (icon activity-rail + placement seam):
+interface PluginContext { setDoc(doc: string): void; run(query: string): void; }
 interface EditorPlugin {
   id: string;
-  toolbarActions?: ToolbarAction[];
-  commands?: { key: string; run(ctx): boolean }[];   // wired into the CM keymap
-  panels?: PanelContribution[];                       // optional dialogs/side panels
-  codeMirrorExtensions?: Extension[];                 // optional CM6 extensions
+  toolbarLabel: string;                 // tooltip + aria-label on the icon toggle
+  icon: string;                         // Click UI icon for the activity-rail button (DL-026)
+  title: string;                        // panel heading
+  placement?: 'left' | 'right';         // which rail/panel; default 'left' (DL-026)
+  renderPanel(ctx: PluginContext, close: () => void): ReactNode;
 }
+// CM-extension / command contribution points are added only when a plugin needs them (DL-008).
 ```
 
 - `PluginProvider` holds a registry; `Toolbar` renders `toolbarActions`, `EditorSurface`
@@ -237,7 +240,7 @@ web/
       StatusBar.tsx                #   Click UI <Text>/<Badge> in a thin layout strip
       Toolbar.tsx                  # thin layout header (no Click UI toolbar primitive); actions = Click UI <Button>s
     plugins/
-      types.ts                     # EditorPlugin, ToolbarAction interfaces
+      types.ts                     # EditorPlugin + PluginContext (icon + placement, DL-026)
       historyPlugin.tsx            # History flyout (DL-013)
       saveQueryPlugin.tsx          # "Save query" action + saved list (DL-013)
       examplesPlugin.tsx           # Golden-dataset "Examples" picker (DL-016)

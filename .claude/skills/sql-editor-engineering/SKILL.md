@@ -73,7 +73,8 @@ trade-offs. These must be rock-solid; every choice should trace to one or more.
   `useMutation`), `useHistory` / `useSavedQueries` / `useSchema` (`useQuery`); `types.ts` (contract).
 - `hooks/` — per-provider `useContext` wrappers **split by update frequency** (DL-010):
   `useEditorDoc` / `useEditorIsEmpty` / `useEditorActions` (from `EditorProvider`), `useQuery`, `usePlugins`.
-- `plugins/` — `EditorPlugin`/`ToolbarAction` interfaces; `historyPlugin`, `saveQueryPlugin`,
+- `plugins/` — `EditorPlugin`/`PluginContext` interfaces (icon activity-rail toggles + `placement`
+  left/right — DL-026); `historyPlugin`, `saveQueryPlugin`,
   `examplesPlugin`; (future) `fileImportPlugin`.
 - `data/goldenQueries.ts` — the golden dataset (also used by tests).
 - `styles.css` — app-shell layout only; colors via Click UI design tokens (DL-021).

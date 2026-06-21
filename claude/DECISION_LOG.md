@@ -611,3 +611,34 @@ ADR-lite: **Context → Decision → Consequences → Alternatives**.
 - **Alternatives considered:** separate explorer/autocomplete fetches (rejected: double-fetch);
   dedicated `/api/schema` endpoint (deferred: `/query` suffices); permanent left sidebar (deferred:
   structural layout change — a future upsell).
+
+---
+
+## DL-026 — Plugin toolbar: icon activity-rail + one left panel with a placement seam
+
+- **Date:** 2026-06-20
+- **Status:** Accepted
+- **Decided by:** User
+- **Context:** As plugins grow (Examples, History, Saved, Schema, …) the text-button toolbar
+  clutters and reads unlike a SQL IDE. The user also weighed a left **and** right panel split. But
+  every current plugin is a "browse → load SQL into the editor" **source**; there's no
+  inspection/detail plugin yet.
+- **Decision:**
+  - **Icon activity-rail** for plugin toggles. Each plugin gets an **`icon`** (Click UI icon); the
+    toggle is an icon button with a **tooltip + `aria-label` (= `toolbarLabel`) +
+    `aria-pressed`/`aria-expanded`** (resolves the R4/R7 a11y note). Matches the ClickHouse console
+    and scales.
+  - **One panel now + a `placement?: 'left' | 'right'` seam** on `EditorPlugin` (default `'left'`).
+    All current plugins are **left** ("sources": Examples, History, Saved, Schema). A **right** panel
+    is reserved for **inspection/detail** plugins (cell inspector, query stats/plan, column details —
+    DL-024 deferred) and only materializes once one exists — **don't build the right panel now**
+    (nothing distinct for it → over-engineering).
+  - The rail groups toggles by placement (left-edge for left plugins; a right-edge group appears only
+    when a right plugin exists). Each side toggles its own panel, so a left source + a right detail
+    can show **simultaneously** once a right plugin lands.
+- **Consequences:** cleaner, IDE-like, scalable toolbar; the left/right capability is future-proofed
+  for ~one interface field; no right-panel code until justified. `EditorPlugin` gains `icon` +
+  `placement?`. Directive for the FE (plugin slices 3c+).
+- **Alternatives considered:** text buttons (clutter as plugins grow); icon+label (widest); build
+  both panels now (empty right → over-engineering); no placement field (a later right panel would
+  mean reworking the plugin interface + layout).
