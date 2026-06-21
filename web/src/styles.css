@@ -111,6 +111,14 @@ body {
   border-left: 1px solid var(--click-global-color-stroke-muted);
 }
 
+/* File import: Click UI's FileUpload exposes no prop for its "Files supported: …" line, which
+   renders as large as the title. Shrink that description (the <p>) below the title (<h1>) so the
+   action text reads as primary. Scoped to the import panel so no other FileUpload is affected. */
+.file-import__upload p {
+  font-size: 0.75rem;
+  line-height: 1.3;
+}
+
 .app-body {
   flex: 1 1 auto;
   min-width: 0;
