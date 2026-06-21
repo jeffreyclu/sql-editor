@@ -9,6 +9,8 @@ import { createQueryRouter } from './routes/query';
 import { createHistoryRouter } from './routes/history';
 import { createSavedQueriesRouter } from './routes/queries';
 import { createImportRouter } from './routes/import';
+import { createAiRouter } from './routes/ai';
+import { createGeminiSqlGenerator, type SqlGenerator } from './ai/sqlGenerator';
 
 /** Built SPA location (`vite build` → `dist/public`), served at `/` in production. */
 const SPA_DIR = path.resolve(process.cwd(), 'dist/public');
@@ -23,6 +25,12 @@ export interface AppDeps {
   historyRepository: HistoryRepository;
   /** Saved-query persistence; defaults to a throwaway in-memory database. */
   savedQueryRepository: SavedQueryRepository;
+  /**
+   * NL→SQL generator for the AI assistant (DL-031/DL-032); overridable in tests with a fake
+   * (DIP). Defaults to a lazily-constructed Gemini generator so the app builds and runs
+   * without `GEMINI_API_KEY` — the route's 503 guard fires before the generator is touched.
+   */
+  sqlGenerator: SqlGenerator;
 }
 
 /**
@@ -36,6 +44,7 @@ export interface AppDeps {
 export function createApp(deps: Partial<AppDeps> = {}): Express {
   const { createExecutor = createClickHouseExecutor, rowLimit } = deps;
   const { historyRepository, savedQueryRepository } = resolveRepositories(deps);
+  const sqlGenerator = deps.sqlGenerator ?? createLazyGeminiSqlGenerator();
 
   const app = express();
   app.use(express.json({ limit: '2mb' }));
@@ -48,6 +57,7 @@ export function createApp(deps: Partial<AppDeps> = {}): Express {
   app.use('/import', createImportRouter({ createExecutor }));
   app.use('/api/history', createHistoryRouter({ historyRepository }));
   app.use('/api/queries', createSavedQueriesRouter({ savedQueryRepository }));
+  app.use('/api/ai', createAiRouter({ sqlGenerator }));
 
   mountSpa(app);
 
@@ -73,6 +83,22 @@ function httpStatusFor(err: unknown): number {
   const candidate = err as { status?: number; statusCode?: number };
   const status = candidate?.status ?? candidate?.statusCode;
   return typeof status === 'number' && status >= 400 && status <= 599 ? status : 500;
+}
+
+/**
+ * A {@link SqlGenerator} that constructs the real Gemini generator lazily, on first use. This
+ * keeps `createApp()` side-effect-free and lets the app build/run without `GEMINI_API_KEY`
+ * (DL-031/DL-032): the AI route's 503 guard short-circuits before `generate` is ever called,
+ * so the missing-key throw never fires unless a configured request actually reaches it.
+ */
+function createLazyGeminiSqlGenerator(): SqlGenerator {
+  let delegate: SqlGenerator | undefined;
+  return {
+    generate(input) {
+      delegate ??= createGeminiSqlGenerator();
+      return delegate.generate(input);
+    },
+  };
 }
 
 /**

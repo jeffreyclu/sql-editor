@@ -321,3 +321,59 @@ The classifier golden test now treats `error` cases as kind-agnostic (invalid SQ
 meaningful query/command kind) so future non-`SELECT`-leading failures won't break it. The long
 query is generated flat (a wide `IN` list, not a deep `UNION`) to avoid ClickHouse parse-depth
 limits, and through the server it also exercises the row cap (2000 → capped to 1000, `truncated`).
+
+---
+
+## AI assistant — backend (DL-031/DL-032)
+
+The backend half of the NL→SQL assistant: a server-side LLM proxy so the provider key never
+reaches the browser, behind an injectable/mockable port (DIP — mirrors `ClickHouseExecutor`).
+
+**Port + factory (`src/server/ai/sqlGenerator.ts`).** `SqlGenerator.generate({ prompt, schema? })
+→ { sql, explanation? }`. `SchemaInput` keeps the FE↔BE wire shape exact:
+`Array<{ name; tables: Array<{ name; columns: Array<{ name; type }> }> }>` (the FE's cached schema
+tree, DL-025). Production factory `createGeminiSqlGenerator()` uses the official **`@google/genai`**
+SDK; `@google/genai` is isolated to this one file (like `@clickhouse/client`).
+
+**Verified SDK surface + model (DL-032: "don't guess").** Checked against the *installed* package's
+own `.d.ts` (`@google/genai@2.9.0`) **and** Google AI docs. Call shape:
+`new GoogleGenAI({ apiKey })` → `ai.models.generateContent({ model, contents, config: {
+systemInstruction, responseMimeType: 'application/json', responseSchema, temperature: 0 } })`, read
+via `response.text` (a `string | undefined` getter). `responseSchema` is a typed `Schema`
+(`Type.OBJECT` + `properties`/`required`/`propertyOrdering`) constraining output to
+`{ sql, explanation? }` — native structured output, no prose-stripping. **Model `gemini-2.5-flash`**
+(`GEMINI_MODEL`), confirmed a current, GA, free-tier model. Reads `GEMINI_API_KEY` from env. The
+model JSON is parsed + validated (`parseGeneratedSql`) so an empty/malformed response is a clear error.
+
+**Route (`src/server/routes/ai.ts`).** `createAiRouter({ sqlGenerator, isConfigured? })` →
+`POST /sql`, mounted at `/api/ai` ⇒ **`POST /api/ai/sql`** (the DL-031/plan path). Contract:
+400 on missing/empty `prompt`; **503 `{ error: 'AI assistant not configured' }` when
+`GEMINI_API_KEY` is unset** (checked *before* the generator is touched, so an unset key is a clean
+503 not an SDK 500); 200 `{ sql, explanation? }`; **429** (detected via the SDK error's `status`
+or message) → friendly "try again in a moment" (free-tier rate limits); 500 on any other fault.
+Total `{ error }` JSON contract.
+
+**Wiring (`src/server/app.ts`).** Mounted before the SPA fallback + terminal `jsonErrorHandler`.
+`AppDeps.sqlGenerator` is overridable (tests inject a fake — **no key needed to build or test**).
+The default is a **lazy** Gemini generator: it defers constructing the real client (which throws on
+a missing key) until the first `generate` call, which only happens after the 503 guard passes — so
+`createApp()` stays side-effect-free and the app builds/runs with no key.
+
+**Env loading (`src/index.ts`).** Added zero-dependency env-file loading via Node's built-in
+`process.loadEnvFile` (Node ≥20.6; this repo runs v24): loads `.env` then `.env.local`
+(`.env.local` wins), best-effort (missing files ignored). Previously *nothing* read env files, so a
+`GEMINI_API_KEY` placed in `.env`/`.env.local` was never seen by the server → spurious "not
+configured" 503. Both files are already gitignored (`.env`, `.env.*`, except `.env.example`).
+
+**Dep.** `npm install @google/genai` (→ `package.json` + `package-lock.json`).
+
+**Tests / typecheck.** `npm run test:server` green — **152 passed** incl. 10 new AI tests:
+route (200 success with/without explanation; 400 empty prompt; **503 key-unset**; 500 on throw;
+429 rate-limit) + generator unit tests (schema→prompt rendering; missing-key throw; constructs
+with a key, no network). `npx tsc -p tsconfig.json --noEmit`: my source files are type-clean; the
+*only* net-new diagnostic is inside `@google/genai`'s bundled `.d.ts` (`Cannot find module
+'@modelcontextprotocol/sdk/...'`) — an **optional** peer dep (`peerDependenciesMeta.optional`) for
+MCP tool-calling we don't use; runtime + tests are unaffected. The repo's typecheck was already
+non-clean before this change (pre-existing `@vitest/expect` lib + `import.test.ts` errors in files
+outside this track); `skipLibCheck` would clear all three lib-level errors but `tsconfig.json` was
+out of edit scope.

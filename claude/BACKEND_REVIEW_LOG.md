@@ -281,3 +281,45 @@ and all review findings are cleared.
 - **NOTE — not a backend issue:** backend is green in isolation (133), but the **unified `npm test`
   is RED** due to the *frontend* Slice 3b (uncommitted): `examplesPlugin` now calls `useTheme()` and
   `PluginBar.test` renders without a `<ThemeProvider>`. Flagged for the frontend review.
+
+---
+
+## Review R9 — AI assistant backend (DL-031/DL-032) + FE↔BE contract cross-check
+
+- **Date:** 2026-06-21
+- **Reviewed:** `ai/sqlGenerator.ts` (+test), `routes/ai.ts` (+test), `app.ts` (mount), `src/index.ts`
+  (env loading), `package.json` (`@google/genai`); cross-checked against the AI **frontend** half
+  (`web/src/api/ai.ts`, `useGenerateSql`, `aiAssistantPlugin`). `npm test` → **204 passed** (27 files).
+- **Verdict:** ✅ **Approve — no blockers.**
+
+### Solid (DL-031/DL-032)
+- **Port + DIP:** `SqlGenerator` interface + `createGeminiSqlGenerator` factory mirror the
+  `ClickHouseExecutor` pattern — route tested with a **fake**, no key needed. `@google/genai` isolated
+  to `sqlGenerator.ts`. Model `gemini-2.5-flash` + the SDK shape verified against the installed
+  package types (the agent didn't guess).
+- **Structured output:** Gemini `responseSchema` (`{ sql, explanation? }`, `required:['sql']`) +
+  defensive `parseGeneratedSql` (empty/malformed/missing-sql all throw clear errors). No prose-stripping.
+- **Route:** `POST /api/ai/sql`; **503 checked before** calling the generator (unset key → clean
+  `{ error: 'AI assistant not configured' }`, not a 500); 400 empty prompt; 429 rate-limit (status +
+  message sniffing); 500 otherwise. Total `{ error }` JSON.
+- **Env loading (`src/index.ts`):** `process.loadEnvFile` for `.env`/`.env.local` (Node built-in,
+  zero-dep, gitignored) — fixes the real "key not loaded" problem; out of the dispatched scope but the
+  correct, minimal fix. Approved.
+- **Path-divergence call:** the agent correctly implemented `/api/ai/sql` (DL-031/plan/FE) over the
+  literal `POST /` in its prompt — FE and BE align.
+
+### FE↔BE contract — VERIFIED matching
+`POST /api/ai/sql` · req `{ prompt: string, schema?: SchemaDatabase[] }` · 200 `{ sql, explanation? }` ·
+errors `{ error }` (400/503/429/500). FE sends the `useSchema` tree as-is; BE's `SchemaDatabase[]` is
+byte-identical to the FE `SchemaTree`. FE maps 503→"set GEMINI_API_KEY", 429→retry. No drift.
+
+### Reviewer fix applied
+- **`tsconfig.json` → `skipLibCheck: true`.** Backend `tsc` was dirty from lib-level `.d.ts` noise
+  (`@google/genai`'s optional `@modelcontextprotocol/sdk` peer, `@vitest/expect`); skipLibCheck clears
+  both (web tsconfig already had it).
+
+### Open (not AI work)
+- **`src/server/routes/import.test.ts:162` — `tsc` error** (`Tuple type '[]' … no element at index 0`).
+  Real type issue in the **import track's** test (in-flight), unrelated to the AI feature. Owner: import track.
+- Live Gemini call not exercised in tests (by design — mocked); the user's key now loads, so a real
+  request will hit the SDK.
