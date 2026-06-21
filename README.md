@@ -1,9 +1,12 @@
-# ClickHouse SQL Web Editor
+# SQL Editor
 
-A small web-based SQL editor for ClickHouse. Write SQL in a syntax-highlighted editor, run
-single- or multi-statement scripts, and see per-statement results — with explicit loading,
-error, and cancellation states, plus a dark/light theme. An Express backend executes SQL
-against a ClickHouse container and persists query history and saved queries in SQLite.
+A small web-based SQL editor. Write SQL in a syntax-highlighted editor, run single- or
+multi-statement scripts, and see per-statement results — with explicit loading, error, and
+cancellation states, plus a dark/light theme. An Express backend executes SQL against a
+ClickHouse container and persists query history and saved queries in SQLite.
+
+> Backed by ClickHouse and built with ClickHouse's Click UI component library; the setup below
+> brings up a ClickHouse container.
 
 ## Requirements
 
