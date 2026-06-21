@@ -680,3 +680,75 @@ a guide line via design tokens) so the database → table → column hierarchy r
   path is covered by tests mocking `fetch` against the `POST /import` contract from review R3.
 - The CSV-export WIP files the prompt said to avoid were **not present** in this working tree (no
   `onExportCsv`, no `csvExportPlugin.ts`/`resultActions.ts`); nothing in those files was touched.
+
+---
+
+## AI assistant — frontend (DL-031)
+
+The frontend half of the NL→SQL AI assistant: a left-rail plugin where the user describes a query
+in plain language and the backend LLM proxy (`POST /api/ai/sql`) generates SQL, which is **loaded
+into the editor for review — never auto-run** (DL-031). Mirrors the existing plugin patterns
+(History/Saved/Schema/Import): thin typed fetch fn → TanStack `useMutation` → a hook-safe plugin
+panel built entirely from Click UI. No editor-core changes (DL-006); no backend touched.
+
+### FE↔BE contract (`POST /api/ai/sql`)
+
+- **Request:** `{ prompt: string, schema?: SchemaTree }` (JSON). `schema` is the cached `SchemaTree`
+  from `useSchema` (DL-025) — `Array<{ name, tables: Array<{ name, columns: Array<{ name, type }> }> }>` —
+  sent **as-is** so the backend can embed it in the prompt and target real tables/columns.
+- **Success (200):** `{ sql: string, explanation?: string }` (type `AiSqlResult`).
+- **Errors:** non-2xx → `ApiError` reading the backend `{ error }` body + status. The plugin maps
+  **503** → friendly "Set GEMINI_API_KEY on the server to enable the AI assistant", **429** →
+  "Rate limit reached — try again in a moment", everything else → the backend message verbatim.
+
+### Files
+
+- **`web/src/api/ai.ts`** (new) — `generateSql({ prompt, schema })`: `POST /api/ai/sql` with the JSON
+  body above; returns `AiSqlResult`; throws `ApiError` (reading `{ error }`, with status) on non-ok.
+  Framework-agnostic service edge (DL-005), mirroring `import.ts`/`savedQueries.ts`.
+- **`web/src/hooks/useGenerateSql.ts`** (new) — TanStack `useMutation` wrapping `generateSql`. Not
+  cached (a one-off generation, like run-query — DL-020); inherits the QueryClient `retry: false`.
+- **`web/src/plugins/aiAssistantPlugin.tsx`** (new) — `EditorPlugin`, `placement: 'left'`,
+  `icon: 'sparkle'` (verified a valid Click UI `IconName`), `toolbarLabel: 'AI'`, `title: 'AI assistant'`.
+  Panel: a Click UI `TextAreaField` prompt + a `Button` (disabled while pending/empty, `loading` on
+  pending). On success → `ctx.setDoc(result.sql)` (load into editor, never run) and renders
+  `result.explanation` when present. Passes the cached `useSchema().data` into the mutation. The hooks
+  live in a child component so they aren't called conditionally from `PluginPanel` (same hook-safety
+  pattern as the other plugins).
+- **`web/src/main.tsx`** — appended `aiAssistantPlugin` to the `plugins` array (one-line edit).
+
+### Decisions / trade-offs
+
+- **`TextAreaField` (not `TextField`)** for the prompt — a multi-line NL prompt wants a textarea; it's
+  a first-party Click UI primitive (DL-017). Note: its handler wires to `onInput`, not `onChange`, so
+  the tests fire `fireEvent.input` (component is correct; this is a jsdom event-name detail).
+- **Schema is best-effort context** — if `useSchema` is still loading or failed, generation is **not**
+  blocked; the backend just receives `schema: undefined` and gets less context. The feature is never
+  gated on the schema query.
+- **Friendly 503/429 mapping** in the panel (not the service) — the service stays a generic typed
+  fetch fn; the user-facing translation lives in the presentation/action layer.
+- **Icon = `sparkle`** — confirmed present in Click UI's `ICON_NAMES` (the prompt's `wand`/`star` were
+  candidates; `sparkle` is the on-brand AI affordance and is valid).
+
+### Tests (DL-015)
+
+- `web/src/api/ai.test.ts` — `generateSql` (mocked `fetch`): POSTs `{ prompt, schema }` JSON to
+  `/api/ai/sql` and returns `{ sql, explanation }`; throws an `ApiError` with the backend `{ error }`
+  message + `status` on a non-ok (503) response; falls back to a status-line message on a non-JSON body.
+- `web/src/plugins/aiAssistantPlugin.test.tsx` — plugin metadata (`id`/`AI`/`sparkle`/`left`); prompt →
+  Generate → `ctx.setDoc` called with the returned SQL and `ctx.run` **not** called (never auto-run),
+  POST body carries `{ prompt, schema }`, explanation rendered; a 503 shows the friendly
+  "set GEMINI_API_KEY" message and does not call `setDoc`.
+
+### Verification
+
+- `npm run test:web` → **52 passed** (17 files), including the **6 new** AI tests.
+- `npx tsc -p web/tsconfig.json --noEmit` → **0 errors**.
+
+### Not verified
+
+- Not exercised live against a running backend/ClickHouse or a real LLM (no key/container in this
+  slice); the data path is covered by tests mocking `fetch` against the `POST /api/ai/sql` contract.
+- The backend route, the `SqlGenerator` port/Gemini wiring, and the `GEMINI_API_KEY`/`.env` plumbing
+  are a concurrent backend track (DL-031/DL-032) — not touched here. The FE only calls our own
+  same-origin endpoint and assumes the documented `{ sql, explanation? }` / `{ error }` shapes.

@@ -10,6 +10,7 @@ import { historyPlugin } from './plugins/historyPlugin';
 import { saveQueryPlugin } from './plugins/saveQueryPlugin';
 import { schemaPlugin } from './plugins/schemaPlugin';
 import { fileImportPlugin } from './plugins/fileImportPlugin';
+import { aiAssistantPlugin } from './plugins/aiAssistantPlugin';
 import { App } from './App';
 import './styles.css';
 
@@ -24,7 +25,7 @@ const queryClient = new QueryClient({
 
 // Registered editor plugins (DL-006). Schema explorer (DL-025) + file import (DL-006) join the
 // existing trio.
-const plugins = [examplesPlugin, historyPlugin, saveQueryPlugin, schemaPlugin, fileImportPlugin];
+const plugins = [examplesPlugin, historyPlugin, saveQueryPlugin, schemaPlugin, fileImportPlugin, aiAssistantPlugin];
 
 // Provider tree (outermost → innermost): theme + Click UI design system (DL-001/DL-017) →
 // TanStack Query (server state, DL-020) → editor document (UI state, DL-010/DL-019) → query run
