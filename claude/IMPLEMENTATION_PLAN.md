@@ -78,11 +78,11 @@ Four layers, dependencies pointing inward (UI → hooks → services → types):
                 │ props + stable callbacks
 ┌──────────────┴── State (plain Context + useState, one provider per concern — DL-010/DL-019) ──────┐
 │  ClickUIProvider → QueryClientProvider (TanStack, server state) → EditorProvider (doc + plugins)  │
-│  consumed with thin useContext wrappers (useEditor / useQuery / ...) — isolated by context        │
+│  thin useContext wrappers split by frequency (useEditorDoc/IsEmpty/Actions, useQuery, ...)         │
 └───────────────▲────────────────────────────────────────────────────────────────────────────────┘
                 │ reads its provider
 ┌───────────────┴── Business logic (hooks) ──────┐   ┌── Services (framework-agnostic TS) ─────────┐
-│  TanStack hooks · useEditor · usePlugins        │──▶│  typed fetch fns (api/) · domain types        │
+│  TanStack hooks · editor hooks · usePlugins     │──▶│  typed fetch fns (api/) · domain types        │
 └─────────────────────────────────────────────────┘   └──────────────────────────────────────────────┘
 ```
 
@@ -225,7 +225,7 @@ web/
     data/
       goldenQueries.ts             # curated golden dataset — powers UI + tests (DL-016)
     hooks/
-      useEditor.ts                 # useContext wrapper for EditorProvider (doc + actions)
+      (editor hooks)               # useEditorDoc / useEditorIsEmpty / useEditorActions — split by frequency (DL-010), from state/EditorProvider
       usePlugins.ts                # access registry
     components/                    # pure + memoized; COMPOSE Click UI primitives first (DL-017)
       RunButton.tsx                # Click UI <Button>

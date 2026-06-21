@@ -217,3 +217,32 @@ hardens / before relying on it) · **NOTE** (non-blocking, logged for traceabili
 - Slice 3b/3c (History, Saved queries) will follow the same `renderPanel` shape over TanStack
   `useQuery`/`useMutation` (DL-013/DL-020) and must mirror `HistoryEntry`/`SavedQuery` in
   `web/src/api/types.ts`.
+
+---
+
+## Review R5 — R4 follow-up: eliminate keystroke re-renders (DL-010)
+
+- **Date:** 2026-06-20
+- **Reviewed:** `EditorProvider` (3-context split), `RunControls`, `EditorPane`, `PluginPanel`,
+  `EditorProvider.test.tsx`. `npm test` → **104 passed**.
+- **Verdict:** ✅ **Approve — no blockers.** Resolves **R4 NOTE-2** (keystroke re-renders).
+
+### What's solid
+- **Three contexts split by update frequency** (DL-010, still plain Context — DL-019): `doc`
+  (every keystroke), `isEmpty` (flips rarely), `actions` (`{ setDoc, getDoc }`, stable via
+  `useMemo([])`). Each consumer subscribes to only what it needs.
+- **Verified mechanism:** on a keystroke the provider re-renders, but `actions` is referentially
+  stable, `isEmpty` keeps the same value, and `children` is a stable element (children-as-props
+  bail-out) — so **only the `EditorDocContext` consumer (`EditorPane`) re-renders.** `RunControls`
+  re-renders only on emptiness/runState change; `PluginPanel` not at all while typing.
+- **`getDoc` ref-backed reader** → Cmd/Ctrl+Enter and Run execute the latest document without
+  subscribing to it, keeping the CodeMirror extension stable (no per-keystroke reconfigure).
+- **Regression test** asserts an actions-only consumer renders exactly once across two edits — the
+  right guard for precisely this issue. Combined `useEditor()` fully removed (no stale refs).
+- Not over-engineered: still plain React Context, no selector/store library; justified by the
+  explicit re-render goal (memoization principle + DL-010).
+
+### NOTE (non-blocking)
+- **Doc drift:** the skill / plan still name a single `useEditor` wrapper; it's now
+  `useEditorDoc` / `useEditorIsEmpty` / `useEditorActions`. The principle is unchanged
+  (per-provider `useContext` wrappers, split by frequency) — worth a one-line sync.

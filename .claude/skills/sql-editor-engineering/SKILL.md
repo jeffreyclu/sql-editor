@@ -71,7 +71,8 @@ trade-offs. These must be rock-solid; every choice should trace to one or more.
   `PluginRegistry`) — DL-019/DL-021/DL-022.
 - `api/` — thin typed fetch fns + **TanStack Query** hooks (DL-020): `useRunQuery` (run,
   `useMutation`), `useHistory` / `useSavedQueries` / `useSchema` (`useQuery`); `types.ts` (contract).
-- `hooks/` — `useEditor` / `useQuery` (`useContext` wrappers), `usePlugins`.
+- `hooks/` — per-provider `useContext` wrappers **split by update frequency** (DL-010):
+  `useEditorDoc` / `useEditorIsEmpty` / `useEditorActions` (from `EditorProvider`), `useQuery`, `usePlugins`.
 - `plugins/` — `EditorPlugin`/`ToolbarAction` interfaces; `historyPlugin`, `saveQueryPlugin`,
   `examplesPlugin`; (future) `fileImportPlugin`.
 - `data/goldenQueries.ts` — the golden dataset (also used by tests).
