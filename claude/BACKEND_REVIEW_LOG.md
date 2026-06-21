@@ -231,3 +231,35 @@ and all review findings are cleared.
   (shape/ordering — real error semantics remain covered by the dedicated stop-on-first-error test).
 - **NOTE (non-blocking):** the deep relative import `../../../web/src/data/goldenQueries` is a
   little brittle; a path alias would be tidier. Test-only.
+
+---
+
+## Review R7 — golden dataset expansion + robust assertions (DL-016)
+
+- **Date:** 2026-06-20
+- **Reviewed:** `web/src/data/goldenQueries.ts` (5 → 12 queries) + `classify` / `splitStatements`
+  / `query` golden-test changes. `npm test` → **125 passed**.
+- **Verdict:** ✅ changes are good — **but 1 BLOCKER (untracked shared file).**
+
+### Solid
+- **Broader coverage:** CTE + window, arrays/maps/lambdas, join + subquery, a DDL statement, a
+  longer 5-statement CRUD script, a large/truncated result (`numbers(100000)`), and tricky
+  in-string `;`/`--` literals (an excellent splitter guard).
+- **Assertions made robust/derived** (not hardcoded): statement count from
+  `splitStatements(golden.sql).length`; multi-statement asserts `length > 1` + contains
+  `command` and `query` (rather than an exact triple); every kind ∈ `{query, command}`; the
+  `ddl` category → `command` verified. The dataset can now grow without brittle breakage.
+
+### 🔴 BLOCKER-1 — `web/src/data/goldenQueries.ts` is untracked but imported by committed code
+- **Evidence:** `git ls-files web/src/data/goldenQueries.ts` → empty (never committed). Imported by
+  **committed** backend tests (`40f4ab1`) **and** the **committed** frontend `examplesPlugin`
+  (`3c1302f`).
+- **Impact:** a fresh `git clone && npm i && npm test` (and `npm run build`) **fails** — the import
+  target isn't in git. Works locally only because the file is present in the working tree. This is a
+  broken-on-clone / would-break-CI defect.
+- **Fix:** commit `web/src/data/goldenQueries.ts` **together with** the updated backend test files
+  (`classify.test` / `splitStatements.test` / `query.test`) — they're co-dependent: the previously
+  committed tests assert hardcoded counts incompatible with the expanded dataset, so splitting them
+  apart breaks the tree either way.
+- **Coordination:** assign clear ownership of `web/src/data/goldenQueries.ts` (the shared DL-016
+  artifact) so it isn't dropped from commits again.

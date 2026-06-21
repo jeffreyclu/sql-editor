@@ -381,6 +381,11 @@ ADR-lite: **Context → Decision → Consequences → Alternatives**.
     (`CREATE/INSERT/SELECT` on a `Memory` table), a deliberately invalid query (error path),
     and a couple of aggregations.
 - **Consequences:** The demo data and the test corpus never drift apart.
+- **Contract file (2026-06-20):** `web/src/data/goldenQueries.ts` is a **shared contract file**
+  (like `web/src/api/types.ts`) — imported by both the FE Examples picker and the BE tests. It must
+  be **committed atomically with any dependent change** (it was once left untracked while committed
+  code on both tracks imported it, breaking fresh clones — FE/BE review BLOCKER-1). Edits should be
+  sanity-checked on both sides.
 - **Alternatives considered:** Separate seed file vs. test fixtures (rejected: duplication/drift).
 
 ---
