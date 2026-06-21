@@ -1,21 +1,26 @@
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
   useMemo,
   useReducer,
+  useRef,
   type ReactNode,
 } from 'react';
 
-// The editor document lives in its own provider so that typing only re-renders editor consumers,
-// never the results pane (DL-010). Plain split React Context + `useReducer` — no custom store or
-// selector layer (DL-019). A reducer + action creators keeps state transitions explicit and
-// testable; persistence is a side effect, so the reducer stays pure.
+// The editor document is high-frequency UI state. To keep typing from re-rendering anything that
+// doesn't display the document, the editor exposes THREE contexts split by update frequency
+// (DL-010) — still plain React Context (DL-019), no selector library:
+//   • doc       — changes on every keystroke (only the editor surface reads it)
+//   • isEmpty   — derived, flips rarely (the Run control reads it for its disabled state)
+//   • actions   — stable for the component's lifetime (setDoc / getDoc)
+// A consumer subscribes to only what it needs, so e.g. the plugin panel and the Run button never
+// re-render while you type.
 
-export interface EditorContextValue {
-  doc: string;
+export interface EditorActions {
   setDoc: (doc: string) => void;
+  /** Read the latest document without subscribing to it (for run-on-demand). */
+  getDoc: () => string;
 }
 
 interface EditorState {
@@ -44,29 +49,58 @@ function readPersistedDoc(): string {
   }
 }
 
-const EditorContext = createContext<EditorContextValue | null>(null);
+const EditorDocContext = createContext<string | null>(null);
+const EditorIsEmptyContext = createContext<boolean | null>(null);
+const EditorActionsContext = createContext<EditorActions | null>(null);
 
 export function EditorProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(editorReducer, undefined, () => ({ doc: readPersistedDoc() }));
 
-  // Best-effort persistence of the last script (ignored in e.g. private mode).
+  // Mirror the latest doc into a ref so `getDoc` is stable yet always current.
+  const docRef = useRef(state.doc);
+  docRef.current = state.doc;
+
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, state.doc);
     } catch {
-      /* ignore */
+      /* best-effort */
     }
   }, [state.doc]);
 
-  const setDoc = useCallback((doc: string) => dispatch({ type: 'setDoc', doc }), []);
+  const actions = useMemo<EditorActions>(
+    () => ({
+      setDoc: (doc: string) => dispatch({ type: 'setDoc', doc }),
+      getDoc: () => docRef.current,
+    }),
+    [],
+  );
 
-  const value = useMemo<EditorContextValue>(() => ({ doc: state.doc, setDoc }), [state.doc, setDoc]);
+  const isEmpty = state.doc.trim().length === 0;
 
-  return <EditorContext.Provider value={value}>{children}</EditorContext.Provider>;
+  return (
+    <EditorActionsContext.Provider value={actions}>
+      <EditorIsEmptyContext.Provider value={isEmpty}>
+        <EditorDocContext.Provider value={state.doc}>{children}</EditorDocContext.Provider>
+      </EditorIsEmptyContext.Provider>
+    </EditorActionsContext.Provider>
+  );
 }
 
-export function useEditor(): EditorContextValue {
-  const context = useContext(EditorContext);
-  if (!context) throw new Error('useEditor must be used within an <EditorProvider>.');
-  return context;
+export function useEditorDoc(): string {
+  const doc = useContext(EditorDocContext);
+  if (doc === null) throw new Error('useEditorDoc must be used within an <EditorProvider>.');
+  return doc;
+}
+
+export function useEditorIsEmpty(): boolean {
+  const isEmpty = useContext(EditorIsEmptyContext);
+  if (isEmpty === null) throw new Error('useEditorIsEmpty must be used within an <EditorProvider>.');
+  return isEmpty;
+}
+
+export function useEditorActions(): EditorActions {
+  const actions = useContext(EditorActionsContext);
+  if (!actions) throw new Error('useEditorActions must be used within an <EditorProvider>.');
+  return actions;
 }

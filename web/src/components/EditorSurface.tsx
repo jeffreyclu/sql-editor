@@ -3,33 +3,30 @@ import CodeMirror from '@uiw/react-codemirror';
 import { sql } from '@codemirror/lang-sql';
 import type { Extension } from '@codemirror/state';
 
-// Pure, presentational CodeMirror surface (DL-002 — Click UI has no editor, DL-017). It
-// holds no business logic: the document and change handler are passed in. Plugins can
-// contribute additional CodeMirror extensions (the low-level plugin seam — DL-006), e.g. a
-// Cmd/Ctrl+Enter run keymap or schema-aware autocomplete.
+// Pure, presentational CodeMirror surface (DL-002 — Click UI has no editor, DL-017). It holds no
+// business logic: the document, change handler and theme are passed in. CodeMirror has its own
+// theming (independent of Click UI), so `theme` drives the editor's light/dark appearance.
 export interface EditorSurfaceProps {
   value: string;
   onChange: (value: string) => void;
-  extensions?: readonly Extension[];
   height?: string;
+  theme?: 'light' | 'dark';
 }
 
 function EditorSurfaceComponent({
   value,
   onChange,
-  extensions,
   height = '100%',
+  theme = 'light',
 }: EditorSurfaceProps) {
-  const allExtensions = useMemo<Extension[]>(
-    () => [sql(), ...(extensions ?? [])],
-    [extensions],
-  );
+  const extensions = useMemo<Extension[]>(() => [sql()], []);
 
   return (
     <CodeMirror
       value={value}
       height={height}
-      extensions={allExtensions}
+      theme={theme}
+      extensions={extensions}
       onChange={onChange}
       basicSetup={{ lineNumbers: true, highlightActiveLine: true, foldGutter: false }}
     />

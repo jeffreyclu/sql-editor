@@ -364,3 +364,99 @@ DL-014) as a follow-on. Tests: a provider/store + one plugin interaction path.
 - `npm run test:web` → **6 passed**. `tsc -p web/tsconfig.json --noEmit` → clean. `npm run build`
   → `dist/public` emitted. Theme attribute (`data-cui-theme`) verified so the custom-CSS tokens
   re-theme with the switcher. **Light/dark confirmed in-browser by the product owner** (2026-06-20).
+
+---
+
+## Slice 3a — Plugin seam + Examples picker (DL-006)
+
+- **Date:** 2026-06-20
+- **Status:** Complete, awaiting review. Tests green (9 across 4 files); typecheck clean; prod
+  build OK.
+- **Plan phase:** 6 (plugins) — the registry seam + the first concrete plugin. History and
+  saved-queries plugins are the next chunks (3b/3c).
+
+### What was built
+
+| File | Responsibility |
+|---|---|
+| `web/src/data/goldenQueries.ts` | The **shared** golden dataset (DL-016): simple SELECT, `numbers()` aggregation, `system.tables` browse, a self-contained multi-statement Memory script, a deliberately invalid query. One source of truth for the Examples picker **and** backend test fixtures. |
+| `web/src/plugins/types.ts` | `EditorPlugin` + `PluginContext`. Minimal per DL-008 — `toolbarLabel`/`title`/`renderPanel(ctx, close)` + `setDoc`/`run`; CodeMirror-extension and command contribution points deferred until a plugin needs them. |
+| `web/src/plugins/PluginProvider.tsx` | Holds the registered plugins; `usePlugins()`. |
+| `web/src/plugins/examplesPlugin.tsx` | Lists the golden queries; selecting one loads it into the editor (`setDoc`) and closes the panel. |
+| `web/src/containers/PluginBar.tsx` | A toolbar toggle button per plugin (active button = primary). |
+| `web/src/containers/PluginPanel.tsx` | Renders the active plugin's panel as an **in-layout side rail** (Click UI `Panel`, no overlay/portal); builds the `PluginContext`. |
+| `main.tsx` / `App.tsx` / `styles.css` | `PluginProvider plugins={[examplesPlugin]}` in the tree; `App` owns the open-panel state and lays out the rail beside the editor/results; token-styled `.example-item` row. |
+
+### Architecture
+
+- **OCP (DL-006):** new addons attach via the registry; the editor core is untouched. Examples is
+  the first plugin; History and Saved queries follow the same `renderPanel(ctx, close)` shape
+  (list → load/run), with Saved adding mutations (DL-013/DL-020).
+- **In-layout Click UI `Panel` side rail** for the panel (DL-017) — rendered in the normal flex
+  flow (no overlay/portal/positioning), so it behaves identically in jsdom and a real browser. The
+  only bespoke bit is the two-line clickable list row. Open state is local to `App`.
+
+### Verification
+
+- `npm run test:web` → **9 passed** (4 files): `examplesPlugin` (selecting an example calls
+  `setDoc(sql)` + `close`; dataset sanity), `PluginBar` (clicking the toolbar button opens the
+  panel), plus the existing `useRunQuery` / run-flow tests. `tsc` clean. `npm run build` →
+  `dist/public` emitted.
+
+> **Corrections (product-owner feedback):**
+> - **Golden dataset stays shared** at `web/src/data/goldenQueries.ts` (DL-016) — an earlier
+>   inlining was reverted; it's the FE/BE contract.
+> - **Examples panel: Flyout → in-layout side rail.** The Click UI Flyout defaulted to
+>   `strategy="relative"`, rendering inline/collapsed in the toolbar (invisible — "the button does
+>   nothing"). Per product-owner call it's now a plain in-layout Click UI `Panel` rail (no
+>   overlay/portal), so it can't render off-screen; guarded by the `PluginBar` test.
+> - **Editor dark theme.** `EditorSurface` takes a `theme` prop wired to `useTheme()`, so
+>   CodeMirror follows light/dark (it has its own theming, separate from Click UI's tokens).
+> - **Removed the redundant `dev:web` script** (inlined `vite` into `dev`); `npm test` already runs
+>   both suites via the root Vitest workspace.
+
+### Next
+
+- **Slice 3b — History plugin:** `useQuery` over `GET /api/history` (backend done), load/re-run via
+  `PluginContext`. **Slice 3c — Saved queries:** `useQuery` + save/delete `useMutation` with
+  `invalidateQueries` (DL-013/DL-020). Schema-aware autocomplete (DL-014 → `useQuery`) as a
+  follow-on.
+
+---
+
+## R4 follow-up — eliminate keystroke re-renders (DL-010)
+
+- **Date:** 2026-06-20
+- **Status:** Complete, awaiting review. Tests green (10 across 5 files); typecheck clean; build OK.
+- **Trigger:** Review R4 NOTE — `PluginPanel` and `RunControls` re-rendered on **every keystroke**
+  because they read the single `useEditor()` context (which changed each `doc` update) just for its
+  actions / emptiness.
+
+### Fix
+
+`EditorProvider` now exposes **three contexts split by update frequency** (DL-010 — still plain
+React Context, no selector lib, DL-019):
+
+| Context | Changes | Consumed by |
+|---|---|---|
+| `EditorDocContext` (`doc`) | every keystroke | `EditorPane` only (it renders the document) |
+| `EditorIsEmptyContext` (`isEmpty`) | rarely (empty ⇄ non-empty) | `RunControls` (its `disabled` state) |
+| `EditorActionsContext` (`{ setDoc, getDoc }`) | never (stable) | `EditorPane`, `RunControls`, `PluginPanel` |
+
+- Typing now re-renders **only the editor surface**. `RunControls` re-renders only when emptiness
+  flips; `PluginPanel` doesn't re-render on typing at all (it reads actions + query state).
+- `getDoc` is a ref-backed stable reader, so `RunControls` runs the *latest* document without
+  subscribing to it.
+
+---
+
+## Note — Cmd/Ctrl+Enter removed
+
+- **Date:** 2026-06-20
+- Removed the editor's Cmd/Ctrl+Enter run keybinding — it's redundant with the Run button and the
+  CodeMirror keymap proved unreliable across setups. Running is button-only now. `EditorSurface` no
+  longer takes a CodeMirror `extensions` prop (nothing contributed one — DL-008); re-add that seam
+  when a plugin actually needs CM extensions.
+- New `EditorProvider` test asserts an actions-only consumer renders **once** across document edits
+  (regression guard for exactly this issue). This relies on the children-as-props bail-out plus the
+  context split.

@@ -64,9 +64,22 @@ body {
   gap: 8px;
 }
 
-/* Body: editor pane over results pane (layout shell) ------------------------ */
+/* Body: optional plugin rail + (editor pane over results pane) -------------- */
+.app-main {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+}
+
+.plugin-panel {
+  flex: 0 0 300px;
+  overflow: auto;
+  border-right: 1px solid var(--click-global-color-stroke-muted);
+}
+
 .app-body {
   flex: 1 1 auto;
+  min-width: 0;
   display: grid;
   grid-template-rows: minmax(0, 1.3fr) minmax(0, 1fr);
   min-height: 0;
@@ -111,4 +124,28 @@ body {
   font-weight: 400;
   font-size: 11px;
   color: var(--click-global-color-text-muted);
+}
+
+/* Clickable example/list row inside a plugin flyout (no Click UI primitive for a 2-line
+   selectable list item). */
+.example-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: 1px solid var(--click-global-color-stroke-muted);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.example-item:hover {
+  background: var(--click-global-color-background-muted);
+}
+
+.example-item p {
+  margin: 0;
 }

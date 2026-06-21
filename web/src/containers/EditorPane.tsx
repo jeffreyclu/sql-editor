@@ -1,36 +1,14 @@
-import { useMemo, useRef } from 'react';
-import { keymap } from '@uiw/react-codemirror';
-import type { Extension } from '@codemirror/state';
 import { EditorSurface } from '../components/EditorSurface';
-import { useEditor } from '../state/EditorProvider';
-import { useQuery } from '../state/QueryProvider';
+import { useEditorActions, useEditorDoc } from '../state/EditorProvider';
+import { useTheme } from '../state/ThemeProvider';
 
-// Container: connects the editor document + run action to the pure EditorSurface. Connected
-// components live in containers/ because they consume hooks/state; components/ stays pure (DL-005).
+// Container: connects the editor document and theme to the pure EditorSurface. This is the only
+// component that subscribes to the high-frequency `doc`, so typing re-renders just the editor
+// (DL-010). Connected components live in containers/; components/ stays pure (DL-005).
 export function EditorPane() {
-  const { doc, setDoc } = useEditor();
-  const { run } = useQuery();
+  const doc = useEditorDoc();
+  const { setDoc } = useEditorActions();
+  const { theme } = useTheme();
 
-  // Keep the latest doc in a ref so the Cmd/Ctrl+Enter binding reads it without rebuilding the
-  // CodeMirror extension on every keystroke.
-  const docRef = useRef(doc);
-  docRef.current = doc;
-
-  const extensions = useMemo<Extension[]>(
-    () => [
-      keymap.of([
-        {
-          key: 'Mod-Enter',
-          preventDefault: true,
-          run: () => {
-            run(docRef.current);
-            return true;
-          },
-        },
-      ]),
-    ],
-    [run],
-  );
-
-  return <EditorSurface value={doc} onChange={setDoc} extensions={extensions} />;
+  return <EditorSurface value={doc} onChange={setDoc} theme={theme} />;
 }
