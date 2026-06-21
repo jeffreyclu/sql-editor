@@ -6,6 +6,7 @@ import { createDatabase } from '../db/db';
 import { createHistoryRepository } from '../db/historyRepository';
 import type { ClickHouseExecutor, QueryResult } from '../clickhouse';
 import { goldenQueries } from '../../../web/src/data/goldenQueries';
+import { splitStatements } from '../sql/splitStatements';
 
 /** Build a `QueryResult` mock mirroring ClickHouse's JSON response shape. */
 function jsonResult(
@@ -173,7 +174,8 @@ describe('POST /query', () => {
       const res = await request(app).post('/query').send({ query: golden.sql });
 
       expect(res.status).toBe(200);
-      expect(res.body.statements).toHaveLength(golden.category === 'multi-statement' ? 3 : 1);
+      // One result per statement — derived from the splitter so new examples never break this.
+      expect(res.body.statements).toHaveLength(splitStatements(golden.sql).length);
       expect(res.body.statements.every((s: { status: string }) => s.status === 'success')).toBe(true);
     },
   );

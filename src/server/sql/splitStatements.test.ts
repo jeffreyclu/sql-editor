@@ -89,6 +89,11 @@ describe('splitStatements over the golden dataset (DL-016)', () => {
       expect(statement).not.toBe('');
       expect(statement.endsWith(';')).toBe(false);
     }
-    expect(statements).toHaveLength(golden.category === 'multi-statement' ? 3 : 1);
+    // Multi-statement scripts split into several; everything else is a single statement.
+    if (golden.category === 'multi-statement') {
+      expect(statements.length).toBeGreaterThan(1);
+    } else {
+      expect(statements).toHaveLength(1);
+    }
   });
 });

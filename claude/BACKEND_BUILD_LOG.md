@@ -280,3 +280,25 @@ fixtures as DL-016 intends:
 
 The adversarial lexical edge-case tests (`;`/`''`/comments/backticks) are kept inline — they
 aren't representable as UI examples, so they stay alongside the golden-driven cases.
+
+---
+
+## Follow-up — expanded the golden corpus (one shared source)
+
+- **Date:** 2026-06-20
+- **Status:** Complete. BE **115 passed**; FE golden consumers green; all new SQL validated
+  against live ClickHouse.
+- **Constraint (user):** new examples must (1) auto-appear in the UI and (2) keep the BE and FE
+  test corpora **identical**. Both hold because there is **one source** — `web/src/data/goldenQueries.ts`
+  — which the Examples picker maps over (auto-render) and both test suites import.
+
+Added 7 cases (reusing existing categories, unique ids): a CTE+window query, arrays/maps/lambdas,
+a JOIN+subquery over `system.*`, a standalone **DDL** (fills the single-command gap), a 5-statement
+**CRUD script**, a **large-result** (truncation/loading demo), and a **tricky-literals** example
+(`;`/`--` inside strings — splitter keeps it whole).
+
+To stay non-divergent and robust to future additions, the backend golden-driven tests are now
+**data-driven**: statement counts are derived from the splitter (not hardcoded per category), and
+classification asserts valid kinds + that multi-statement scripts exercise both `command` and `query`.
+Validated end-to-end: every golden query runs against ClickHouse (the complex ones return expected
+results; `invalid-query` is the deliberate error path).
