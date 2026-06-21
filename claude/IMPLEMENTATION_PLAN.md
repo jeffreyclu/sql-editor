@@ -348,6 +348,41 @@ seen in action immediately. **In tests**, the same array feeds the splitter/clas
 - **Click UI** requires `<ClickUIProvider>` + `styled-components` peer; styles load via its import
   graph — no manual `cui.css` import on v0.6.1 (DL-001/DL-021).
 
+## AI assistant — NL→SQL plugin (DL-031)
+
+A chat panel where the user asks in plain language and the LLM generates SQL, loaded into the editor
+for review. Server-side proxy (key never in the browser), schema-aware, structured output.
+**LLM = Google Gemini, AI Studio free tier (DL-032)** — behind a provider-agnostic port, so it's swappable.
+
+**Backend** (`src/server/`)
+- `ai/sqlGenerator.ts` — a narrow **port** (`SqlGenerator.generate({ prompt, schema }) → { sql, explanation? }`)
+  + production factory using the official **`@google/genai`** SDK (`generateContent` with a JSON
+    **`responseSchema`** → `{ sql, explanation? }`), a current free-tier Gemini model
+    (e.g. `gemini-2.5-flash` — **verify exact SDK surface + model ID against Google AI docs; don't guess**).
+    Reads `GEMINI_API_KEY` from env. Injectable/mockable (DIP, like `ClickHouseExecutor`).
+- `routes/ai.ts` — `POST /api/ai/sql` `{ prompt, schema? }` → `200 { sql, explanation? }`;
+  **503 `{ error: 'AI assistant not configured' }`** when the key is unset; 400 on empty prompt;
+  429 surfaced as "try again" (free-tier rate limits); 500 on upstream faults. Mounted in `app.ts`
+  with an injected generator (default = real; tests inject a fake).
+
+**Frontend** (`web/src/`)
+- `api/ai.ts` — `generateSql({ prompt, schema })` typed fetch → `{ sql, explanation? }`; `ApiError` on non-2xx.
+- `hooks/useGenerateSql.ts` — TanStack `useMutation` (idle/pending/error), not cached (DL-020).
+- `plugins/aiAssistantPlugin.tsx` — `placement:'left'`, icon (e.g. `sparkle`/`wand`); chat panel:
+  prompt textarea + Generate; on success **`ctx.setDoc(sql)`** (load into editor — never auto-run) +
+  show `explanation`; passes the cached `useSchema` tree so SQL targets real tables. Friendly
+  "set ANTHROPIC_API_KEY" state on 503. Same hook-safety/Click UI patterns as the other plugins.
+- Register in `main.tsx`.
+
+**Config / security**: `GEMINI_API_KEY` (AI Studio free tier, DL-032) server-only, via a
+**gitignored `.env`** at the repo root; never bundled, never logged, never sent to the client. The
+feature still builds/tests against a **mocked** generator (no key needed to develop/test/merge); the
+key is only read at runtime by the production `SqlGenerator` factory. A `.env.example` documents the
+var name (committed; the real `.env` is ignored).
+
+**Tests**: route via supertest with a mocked generator (success, empty-prompt 400, no-key 503);
+`useGenerateSql` (pending→success/error); one plugin path (prompt → Generate → `setDoc` called).
+
 ## Feature scope vs. ClickHouse SQL Console (DL-024)
 
 Benchmarked against ClickHouse Cloud's SQL Console. Most of its surface is out of scope here; we

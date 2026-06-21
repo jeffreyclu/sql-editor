@@ -9,3 +9,8 @@ node_modules
 *.db-shm
 *.db-wal
 *.sqlite
+
+# Secrets — server-side API keys (e.g. ANTHROPIC_API_KEY for the AI assistant, DL-031)
+.env
+.env.*
+!.env.example

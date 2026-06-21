@@ -712,3 +712,118 @@ ADR-lite: **Context → Decision → Consequences → Alternatives**.
 - **Alternatives considered:** a dedicated `GET /api/schema` (DL-025's other fallback — cleaner
   separation, but more code and moves the transform server-side) — deferred; a request header instead
   of a body field (equivalent; body chosen for simplicity).
+
+---
+
+## DL-030 — File import plugin UX: schema-backed table picker, derived format, lifecycle-correct upload
+
+- **Date:** 2026-06-21
+- **Status:** Accepted
+- **Decided by:** Engineering (product-owner feedback during the import slice)
+- **Context:** First hands-on use of the `fileImportPlugin` surfaced several UX/behaviour gaps:
+  the target **table** was a free-text field (the user had no way to know which tables exist);
+  the **format** was a manual dropdown the user expected to be inferred; the panel **close**
+  control was a text "Close" button; and on a *successful* import the Click UI `FileUpload`
+  flipped to a red error state with a dead Retry button.
+- **Decision:**
+  - **Table = dropdown from the schema** (`useSchema`, DL-025), values **database-qualified**
+    (`db.table`) via `qualifiedTableNames` — import only ever targets an existing table, so the
+    cached schema is the right source, not free text or the filename. The dropdown mirrors the
+    schema query's loading/empty/error states (DL-020).
+  - **Format = derived default, still editable** (`formatForFileName`): the file extension
+    pre-selects the format (`.csv`→`CSVWithNames`, `.tsv`/`.tab`→`TabSeparatedWithNames`,
+    `.json`/`.ndjson`→`JSONEachRow`). It can only be a *default* — the extension can't reveal
+    whether a CSV/TSV has a header (`CSV` vs `CSVWithNames`) — so the dropdown stays for override.
+  - **Panel collapse control** is a directional chevron in `PluginPanel` (left panel →
+    `chevron-left`, right panel → `chevron-right`), replacing the text button (DL-026 placement).
+  - **Upload lifecycle:** `FileUpload` is uncontrolled (owns its selected-file state) and renders
+    red whenever it is neither in a success nor progress state. So `showSuccess` is mapped to the
+    mutation state (`file && !isError`), `onRetry`/`failureMessage` are wired so a *real* failure
+    has a working retry, the mutation is `reset()` on new-file-select/close, and the component is
+    **remounted (key bump)** on success to truly clear it instead of falling into the error state.
+  - **`/import` added to the Vite dev proxy** (it 404'd in dev — only `/query` and `/api` were
+    proxied to Express).
+- **Consequences:** import targets are unambiguous and discoverable; the common case needs no
+  manual format pick; success leaves the panel clean and failures are recoverable in place. Pure
+  helpers (`qualifiedTableNames`, `formatForFileName`) are unit-tested; the plugin integration test
+  drives the schema-backed dropdown and asserts the post-success reset.
+- **Alternatives considered:** deriving the table from the filename (rejected — yields only a name
+  with no existence guarantee, and the backend does no table creation/inference); full header
+  sniffing to remove the format control (rejected — heuristic, silently corrupts data when wrong);
+  an editable combobox allowing off-schema table names (deferred — not needed yet, DL-008).
+
+---
+
+## DL-031 — AI assistant: NL→SQL via a server-side Claude proxy, surfaced as an editor plugin
+
+- **Date:** 2026-06-21
+- **Status:** Accepted — **provider/model/SDK/env superseded by DL-032** (free-tier provider). The
+  architecture below (plugin, server-side proxy, never-auto-run, structured output, mockable port,
+  schema-aware, graceful 503) still stands; only the LLM behind the port changed.
+- **Decided by:** User (high-priority feature) + Engineering (architecture)
+- **Context:** Add an AI assistant: a chat panel where the user asks in plain language and Claude
+  generates a SQL query. The app has no LLM integration yet (greenfield). Per the `claude-api` skill
+  this is a Claude/Anthropic build; the authoritative API reference was consulted before fixing any
+  model/SDK specifics.
+- **Decision:**
+  - **Plugin, not core (DL-006).** An `aiAssistantPlugin` (`placement: 'left'`, source-style) opens a
+    chat panel; same `renderPanel`/hook-safety shape as History/Saved/Schema/Examples. No editor-core
+    changes.
+  - **Server-side Claude proxy — key never touches the browser.** A new backend route
+    `POST /api/ai/sql` accepts `{ prompt, schema? }` and calls Claude with `@anthropic-ai/sdk`
+    (`client.messages.create`). The API key is read from `ANTHROPIC_API_KEY` (server env) only.
+  - **Model `claude-opus-4-8`** (user choice — most accurate NL→SQL); adaptive thinking on,
+    `output_config.effort: "low"` (SQL-gen is short). Behind an injectable port so the model/provider
+    is swappable and **mockable in tests** (mirrors the `ClickHouseExecutor` DIP pattern, DL-005).
+  - **Structured output, not raw text.** Use `output_config.format` (JSON schema) /
+    `messages.parse` → `{ sql: string, explanation?: string }`, so the response is reliably just the
+    SQL (no prose-stripping). Backend returns `{ sql, explanation? }`; transport errors → `{ error }`.
+  - **Schema-aware.** The plugin passes the cached `useSchema` tree (DL-025) so generated SQL
+    references real tables/columns; the route embeds it in the system prompt.
+  - **Never auto-run (user choice).** Generated SQL is **loaded into the editor** via `ctx.setDoc`;
+    the user always reviews and clicks Run. No auto-execute, no write/DDL gating needed.
+  - **No key → graceful 503.** When `ANTHROPIC_API_KEY` is unset the route returns
+    503 `{ error: 'AI assistant not configured' }`; the plugin shows a friendly "set ANTHROPIC_API_KEY"
+    message. The app runs fully without a key.
+  - **TanStack `useMutation`** drives the request (idle/pending/error), like the run mutation (DL-020);
+    not cached.
+- **Consequences:** new dep `@anthropic-ai/sdk`; new `src/server/ai/` (client port + factory) and
+  `routes/ai.ts`; FE `api/ai.ts` + `useGenerateSql` + `aiAssistantPlugin`. Built/tested/merged with a
+  **mocked** client (no key required); live use needs a Console API key (separate from Claude Pro).
+  Key is gitignored (`.env`) and server-only — never in the bundle or logs.
+- **Alternatives considered:** call Claude directly from the browser (rejected — exposes the key);
+  return raw text and parse the SQL out (rejected — structured output is reliable); auto-run generated
+  SQL (rejected by the user — load into editor for review); Haiku/Sonnet (offered; user chose Opus 4.8
+  for accuracy); tool-use/agentic loop (deferred — single structured generation suffices, DL-008).
+
+---
+
+## DL-032 — AI assistant LLM: Google Gemini (free tier), not Anthropic (supersedes DL-031's provider)
+
+- **Date:** 2026-06-21
+- **Status:** Accepted (supersedes the provider/model/SDK/env-var parts of DL-031)
+- **Decided by:** User (wants a $0 key) + Engineering (provider pick)
+- **Context:** A Claude Pro subscription grants no API access, and Anthropic has no permanent free
+  tier. The user chose a **free-tier provider** over keeping Claude. The `claude-api` skill produces
+  Anthropic code, so it does **not** apply to this feature — we use the chosen provider's own SDK.
+- **Decision:** Use **Google Gemini (AI Studio free tier)** as the NL→SQL LLM, behind the same
+  `SqlGenerator` port from DL-031 (so the rest of DL-031 is unchanged):
+  - **Provider/SDK:** official Google GenAI Node SDK (`@google/genai`), `generateContent` with a JSON
+    **`responseSchema`** (Gemini native structured output) → `{ sql, explanation? }`. **Verify the
+    exact SDK surface + current free-tier model ID against official Google AI docs at implementation
+    time — do not guess** (cf. the `cui.css` lesson, DL-001).
+  - **Model:** a current fast Gemini model on the free tier (e.g. `gemini-2.5-flash` / `gemini-2.0-flash`
+    — confirm the exact ID and free-tier eligibility before wiring).
+  - **Env var:** `GEMINI_API_KEY` (server-only, gitignored `.env`). Unset → the route's graceful
+    503 from DL-031 still applies (message generalized to "AI assistant not configured").
+  - **Unchanged from DL-031:** `aiAssistantPlugin` (left, never-auto-run → `ctx.setDoc`), server proxy
+    `POST /api/ai/sql`, schema-aware prompt (DL-025), injectable/**mockable** port (built+tested with a
+    fake; no key needed), `useGenerateSql` TanStack mutation. Free tier has rate limits — surface 429s
+    as a friendly "try again in a moment" in the plugin.
+- **Consequences:** dep is `@google/genai` (not `@anthropic-ai/sdk`); the model behind the port is the
+  only real change. $0 key from AI Studio; off the Claude path for this one feature (the rest of the
+  app is unaffected). Provider stays swappable behind `SqlGenerator` (Groq/OpenRouter are alternatives).
+- **Alternatives considered:** **Groq** free tier (OpenAI-compatible, very fast open models —
+  viable drop-in behind the same port; not chosen because Gemini's native `responseSchema` maps more
+  cleanly to our structured contract and its free tier is generous); **OpenRouter** free models
+  (more variable availability); keeping Anthropic with a small prepay (rejected by the user — wanted free).
