@@ -295,3 +295,67 @@ hardens / before relying on it) · **NOTE** (non-blocking, logged for traceabili
 ### Coordination
 - Re-run is a trivial follow-on (`ctx.run` is wired). Next: Slice 3c (Saved queries), then the
   Schema explorer + autocomplete slice (DL-025).
+
+---
+
+## Review R8 — Slice 3c (Saved queries) + DL-026 (icon activity-rail)
+
+- **Date:** 2026-06-20
+- **Reviewed:** `api/savedQueries.ts`, `hooks/useSavedQueries.ts`, `plugins/saveQueryPlugin.tsx`,
+  `plugins/types.ts`, `containers/PluginRail.tsx`, `containers/PluginPanel.tsx`, `App.tsx`,
+  `EditorPane.tsx`, `api/types.ts`. `npm test` → **146 passed** (15 files).
+- **Verdict:** ✅ **Approve — no blockers.** Notes only.
+
+### Solid
+- **Contract exact:** FE `SavedQuery`/`NewSavedQuery` mirror the backend (`Pick<'name'|'sql'>` = the
+  backend's `Omit`). `GET`→array, `POST`→entity, `DELETE`→void; `id` URL-encoded on delete.
+- **DL-020:** `useSavedQueries` (useQuery) + save/delete `useMutation` invalidate the list `onSuccess`.
+- **DL-026 seam:** `EditorPlugin` gains `icon: IconName` + `placement?: 'left'|'right'` (default left);
+  `PluginRail` filters by placement and **renders nothing when empty**, so the right rail only appears
+  once a right-placement plugin exists. `PluginContext` gains `getDoc()`; Save reads the live doc via
+  the ref-backed `getDoc` (no subscription) — good.
+- **DL-017:** Click UI `CardHorizontal`/`TextField`/`IconButton`/`Tooltip`/`Container` throughout.
+  Hook-safety preserved (panels wrap their hooks in a component).
+
+### NOTES (non-blocking)
+- **Save disabled-state can be stale.** `canSave` reads `ctx.getDoc()` at render, but the panel
+  doesn't subscribe to the editor doc (`getDoc` is a non-subscribing ref read), so the Save button's
+  enabled/disabled state only refreshes when the name field re-renders. Harden `handleSave` to
+  re-check `ctx.getDoc().trim()` at click (it already reads `getDoc()` for the payload — just guard on
+  it), or gate on a subscribed emptiness signal.
+- **DL-027 toasts not yet implemented.** The actions that should confirm — save/delete (saved
+  queries) and copy/clear (editor pane) — now exist but fire no toast. This is the natural next step;
+  in particular **clear (`setDoc('')`) is destructive with no confirmation** — a toast (or undo) is
+  warranted. *(Resolved in R9.)*
+
+---
+
+## Review R9 — Toast notifications (DL-027)
+
+- **Date:** 2026-06-20
+- **Reviewed:** the staged toast changeset (isolated from concurrent schema work) — `hooks/useToast.ts`
+  (new), `containers/EditorPane.tsx`, `plugins/saveQueryPlugin.tsx`.
+- **Verdict:** ✅ **Approve — no blockers.**
+
+### Solid
+- **`useToast`** is a thin wrapper over Click UI's `createToast` (`success`/`error`/`info`/`show`), so
+  containers/plugins/mutations fire toasts without importing toast internals (DL-027/DL-005/DL-017),
+  swappable in one place.
+- **Fired from the action layer:** save → "Query saved"/error and delete → "Query deleted"/error
+  (mutation callbacks); copy → "Copied to clipboard"/error (handles the clipboard promise rejection);
+  clear → "Editor cleared" with an **Undo** action that restores the previous doc.
+- **Resolves two prior R8 notes:** Save now re-checks `ctx.getDoc()` at click (no stale-enable bug),
+  and the destructive Clear is guarded + offers Undo.
+- Does **not** toast query results/errors (already surfaced inline) — exactly per DL-027.
+
+### NOTE (non-blocking)
+- **No tests for the toast layer.** Worth one small test for the clear→Undo restore (the only
+  non-trivial behavior); the rest is thin.
+
+### Coordination (git hazard — not a code issue)
+- A `git reset HEAD~2` un-committed the toast commit (`a723b22`) and the R8 review commit
+  (`1a15084`); both survive **staged** (and in reflog) and need re-committing. Symptom of multiple
+  agents committing to one branch.
+- **Single open-panel state.** `App` tracks one `openPluginId`; fine while every plugin is left-placed,
+  but when a right-placement plugin lands (the DL-026 seam) you'll want independent left/right open
+  state so a source + a detail can show together.

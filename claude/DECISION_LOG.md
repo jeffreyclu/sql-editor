@@ -669,3 +669,25 @@ ADR-lite: **Context → Decision → Consequences → Alternatives**.
 - **Alternatives considered:** a custom toast component (rejected — Click UI ships one, DL-017);
   inline status text only (rejected — less discoverable for transient confirmations); toasting query
   errors too (rejected — already shown inline; would double-surface).
+
+---
+
+## DL-028 — Build the right panel; Schema explorer is right-placed
+
+- **Date:** 2026-06-20
+- **Status:** Accepted (activates the DL-026 `placement` seam; **supersedes DL-026's "defer the right
+  panel until a right plugin exists"**)
+- **Decided by:** User
+- **Context:** DL-026 added the `placement` seam but deferred *building* the right rail/panel until a
+  right-placement plugin existed (to avoid over-engineering). The user directed that the **Schema
+  explorer (DL-025) be a right-docked panel** and that the right rail/panel be built now.
+- **Decision:** Build the **right rail + right panel**. `schemaPlugin` is `placement: 'right'`. `App`
+  holds **independent left/right open-state**, so a left "source" panel (Examples/History/Saved) and
+  the right Schema panel can be open **simultaneously** (the payoff DL-026 anticipated). `PluginPanel`
+  is side-aware (border side); a second `PluginRail` renders on the right edge.
+- **Consequences:** the right panel exists now. This **refines DL-026's taxonomy** — Schema is a
+  "source" (browse → load) yet docked on the right by product choice (IDE-like layout: editor centre,
+  schema right), rather than on the left with the other sources. Future inspection plugins can also
+  use the right side.
+- **Alternatives considered:** Schema on the left with the other sources (the DL-026 default) —
+  rejected by the product owner in favour of a right-docked explorer layout.
