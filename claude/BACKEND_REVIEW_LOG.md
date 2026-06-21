@@ -151,3 +151,66 @@ hardens / before relying on it) · **NOTE** (non-blocking, logged for traceabili
 - FE `fileImportPlugin` should `POST /import` as `multipart/form-data` (`file` + `table` + optional
   `format`); success → `{ table, format, rowsWritten?, queryId }`, errors → `{ error }`. No
   `web/src/api/types.ts` change needed beyond an import-result type when the plugin is built.
+
+---
+
+## Review R4 — `/query` request abort / cancellation
+
+- **Date:** 2026-06-20
+- **Reviewed:** `routes/query.ts`, `clickhouse.ts` (`abort_signal`), `app.ts` (uncommitted abort
+  change; **no build-log entry yet**). `npm test` → **84 passed**.
+- **Verdict:** ⚠️ **Abort mechanism is correct, but 1 HIGH to fix before merge** (history pollution).
+
+### What's solid (verified)
+- `AbortController` per request; `res.on('close')` aborts **only** when `!res.writableEnded`, so a
+  normal completion never false-triggers a cancel. Correct client-disconnect detection.
+- `abort_signal` propagated to `client.query` / `client.command`; an aborted statement rejects →
+  caught in `runStatement` → returned as an error result → loop breaks. No unhandled rejection.
+- `if (!clientGone)` guards both responses, preventing write-after-end / double-response.
+- Mirrors the FE's `AbortController` (cancel + supersede, DL-020); no contract/shape change.
+
+### HIGH-1 — cancelled/superseded runs pollute query history
+- **Where:** `routes/query.ts:69` (`recordHistory` runs **unconditionally**, before the
+  `!clientGone` response guard) and `:76` (catch path).
+- **Problem:** The FE aborts the in-flight request on **every supersede** (a new run while one is
+  pending) **and** on Cancel (`useRunQuery`, DL-020). Each abort disconnects the socket →
+  `clientGone` + `controller.abort()` → the running statement rejects → `runStatement` returns an
+  `error` result → `recordHistory(...)` writes a spurious `status:'error'` row (with an abort
+  message) to SQLite. So ordinary use spams the history log with junk error entries — degrading the
+  history feature (DL-013) the moment its UI lands (Slice 3).
+- **Fix:** only record runs the client actually waited for — move `recordHistory(...)` **inside the
+  `if (!clientGone)`** block in both the `try` and `catch`. (Alternatively log a distinct
+  `'cancelled'` status, but skipping is simplest and matches "history = runs you ran".)
+
+### NOTES (non-blocking)
+- `/import` is not abortable (no `signal`) — acceptable for now; uploads differ.
+- Server-side cancellation is best-effort: aborting the HTTP request drops the connection, and
+  ClickHouse cancels the running query on client disconnect for typical SELECTs. Fine.
+- **Process:** add a `BACKEND_BUILD_LOG.md` entry for this abort slice for traceability.
+
+> **Update (R5):** the abort change was **reverted**, not merged — so HIGH-1 below no longer applies.
+
+---
+
+## Review R5 — re-review of committed backend (import validation + abort revert)
+
+- **Date:** 2026-06-20
+- **Reviewed:** committed `main` through `f0e0d44`; `routes/import.ts`, `clickhouse.ts`,
+  `routes/query.ts`. `npm test` → **88 passed**.
+- **Verdict:** ✅ **Approve — no blockers.**
+
+- **R3 NOTE (table identifier) — RESOLVED** (`f0e0d44`). `import.ts` validates `table` against
+  `^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$` (allows `db.table`) and returns a clear
+  400 before reaching `insert`. The code comment correctly frames it as a clarity check, not a
+  security control (matches the R3 rationale). Good.
+- **Abort/cancellation (R4) — REVERTED.** The committed `query.ts`/`clickhouse.ts` are the
+  pre-abort version: no `AbortController`, no `signal`/`abort_signal`, no orphaned dead code (clean
+  revert). Therefore **R4 HIGH-1 (history pollution on cancel/supersede) no longer applies.**
+- **NOTE — server-side cancellation is currently absent.** The FE Cancel/supersede aborts the
+  client fetch only; the ClickHouse query runs to completion server-side (best-effort cancel on
+  connection drop). This is the original design and not a regression from any committed state. If
+  re-introduced, do it **with** the R4 fix (skip `recordHistory` when `clientGone`). Decision, not
+  a blocker.
+
+Net: the backend base product (query pipeline · persistence · serving · file-import) is complete
+and all review findings are cleared.

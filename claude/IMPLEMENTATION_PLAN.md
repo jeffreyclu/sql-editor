@@ -340,6 +340,26 @@ seen in action immediately. **In tests**, the same array feeds the splitter/clas
 - **Click UI** requires `<ClickUIProvider>` + `styled-components` peer; styles load via its import
   graph — no manual `cui.css` import on v0.6.1 (DL-001/DL-021).
 
+## Feature scope vs. ClickHouse SQL Console (DL-024)
+
+Benchmarked against ClickHouse Cloud's SQL Console. Most of its surface is out of scope here; we
+adopt the high-leverage, low-cost gaps — each an editor plugin / toolbar action (DL-006):
+
+- **Export results as CSV** (results-pane toolbar action).
+- **Schema browser sidebar** (databases → tables → columns) over `system.tables`/`system.columns`,
+  feeding the planned autocomplete (DL-014 → DL-020).
+- **Run selection** (Cmd/Ctrl+Enter on a selection) + **run at cursor** (Cmd/Ctrl+Shift+Enter) +
+  **Esc to cancel** — CodeMirror keymap.
+- **Result search** + **client-side column sort** on the results grid.
+- **Saved-query polish**: Cmd/Ctrl+S to save + inline rename (with the Slice-3 saved-queries UI).
+
+Already on the roadmap (Slice 3): history UI, saved-queries UI, examples (golden dataset), schema
+autocomplete, file-import plugin.
+
+**Deliberately deferred / out of scope** (trade-off, not omission): charts/visualizations; GenAI
+NL→SQL & "Fix Query"; multiple query tabs; sharing/collaboration (needs auth/multi-user);
+server-side pagination (we cap results at 1000 — DL-009); filter→SQL builder.
+
 ## Verification
 
 1. `docker compose up -d` → ClickHouse on `:8123`.

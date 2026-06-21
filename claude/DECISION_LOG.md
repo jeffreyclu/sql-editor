@@ -553,3 +553,30 @@ ADR-lite: **Context → Decision → Consequences → Alternatives**.
   `ResultsRegion` reads only the query provider, so typing never re-renders results.
 - **Consequences:** Presentation stays logic-free/testable; subscription boundaries are explicit;
   `App` never re-renders. Clear home for the future plugin-contributed wrappers.
+
+---
+
+## DL-024 — Feature scope vs. ClickHouse SQL Console (gap analysis)
+
+- **Date:** 2026-06-20
+- **Status:** Accepted
+- **Decided by:** User
+- **Context:** Benchmarked against ClickHouse Cloud's SQL Console
+  ([docs](https://clickhouse.com/docs/integrations/sql-clients/sql-console)) to find gaps. That's a
+  mature product; most of its surface is out of scope for this exercise, but a few gaps are cheap
+  and high-value.
+- **Decision:** Adopt a prioritized subset as scoped follow-ups — each an **editor plugin /
+  toolbar action** (DL-006) where it fits — and explicitly defer the rest:
+  - **Will add (high-value, low-cost):** export results as **CSV**; **schema browser sidebar**
+    (databases → tables → columns over `system.tables`/`system.columns`, feeding autocomplete);
+    **run selection** (Cmd/Ctrl+Enter on a selection) + **run at cursor** (Cmd/Ctrl+Shift+Enter) +
+    **Esc to cancel**; **result-set search**; **client-side column sort**; saved-query polish
+    (Cmd/Ctrl+S + inline rename) alongside the Slice-3 saved-queries UI.
+  - **Already on the roadmap (Slice 3):** history UI, saved-queries UI, examples (golden dataset),
+    schema autocomplete, file-import plugin.
+  - **Deliberately deferred / out of scope (trade-off, not omission):** charts/visualizations;
+    GenAI NL→SQL & "Fix Query" (separate AI integration); multiple query tabs (structural, low
+    marginal value here); sharing/collaboration (needs auth/multi-user); server-side pagination
+    (we cap results at 1000 instead — DL-009); filter→SQL builder.
+- **Consequences:** Closes the most visible UX gaps cheaply while keeping scope honest; the
+  deferred list makes the trade-offs explicit for reviewers (eval criterion #6).
