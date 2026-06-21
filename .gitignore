@@ -3,7 +3,8 @@ node_modules
 .DS_Store
 
 # SQLite persistence (query history + saved queries) — DL-013
-data/
+# Root-anchored so it ignores only the repo-root DB dir, not web/src/data/ (golden dataset).
+/data/
 *.db
 *.db-shm
 *.db-wal
