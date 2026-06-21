@@ -1,0 +1,5 @@
+{"id":1,"author":"alice","body":"First note.","score":10}
+{"author":"bob","id":2,"body":"Keys out of order — JSONEachRow maps fields by name, not position.","score":-5}
+{"id":3,"author":"céline","body":"Unicode: naïve café 日本語 🚀\nSecond line via a \\n escape.\tAnd a tab.","score":null}
+{"id":4,"author":"quote","body":"He said \"hi\", then left.","score":0}
+{"id":5,"author":"nobody","body":"score field omitted -> defaults to NULL (Nullable column)"}

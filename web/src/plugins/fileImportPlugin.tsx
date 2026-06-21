@@ -57,13 +57,18 @@ function ImportPanel() {
 
   return (
     <Container orientation="vertical" gap="lg" fillWidth>
-      <FileUpload
-        title="Drop a file or browse"
-        supportedFileTypes={SUPPORTED_FILE_TYPES}
-        showSuccess={file !== null}
-        onFileSelect={(selected) => setFile(selected)}
-        onFileClose={() => setFile(null)}
-      />
+      {/* Wrapper so styles.css can shrink Click UI's "Files supported: …" line (FileUploadDescription)
+          below the title — the component exposes no prop for it (DL-017 escape hatch). */}
+      <div className="file-import__upload">
+        <FileUpload
+          title="Drop a file or browse"
+          size="md"
+          supportedFileTypes={SUPPORTED_FILE_TYPES}
+          showSuccess={file !== null}
+          onFileSelect={(selected) => setFile(selected)}
+          onFileClose={() => setFile(null)}
+        />
+      </div>
 
       <Container orientation="vertical" gap="xs" fillWidth>
         <Text size="sm" color="muted">

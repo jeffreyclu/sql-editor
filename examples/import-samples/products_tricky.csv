@@ -1,0 +1,7 @@
+id,name,description,price,tags
+1,"Widget, Deluxe","A sturdy widget.
+Now spans two physical lines inside one quoted field.",9.99,"home;tools"
+2,"Quote ""Master""","She said ""hello"" loudly, then left.",4.50,"office"
+3,Café ☕,"naïve façade — 日本語, emoji 🚀 and an em–dash",19.95,"intl;unicode"
+4,"  Padded  ","leading and trailing spaces are preserved inside quotes",0.00,""
+5,Plain,No quotes needed for this row,12.34,"simple"
